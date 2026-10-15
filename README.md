@@ -50,8 +50,15 @@ Milestone **M4 — tools, LangGraph agent, `/v1/ask`, fixture DB and agent eval*
 - `POST /v1/ask` streams SSE (`plan`, `tool_call`, `tool_result`, `token`, `done` with
   `trace_id`/`partial`/`grounded`, `error`), returns `503` when Postgres is down and
   cancels on disconnect,
-- a deterministic **fixture database** (no post text) and 9 agent cases run in CI; the
-  fake-model result is `eval/results/agent_fixture_fake.json`.
+- a deterministic **fixture database** (no post text) and 9 agent smoke cases run in CI; the
+  fake-model result is `eval/results/agent_fixture_fake.json`,
+- a canonical **five-year synthetic evaluation fixture** (2019-2023, 1800 metadata-only
+  posts, versioned SHA-256 row hash) and a **64-question, 222-fact agent set** across all
+  five tools and every SPEC §11 category, with independently SQL-computed expected facts, a
+  2-question regression gate and failure-sensitive controls; the run is tagged
+  `model=fake` / `source=synthetic_fixture` / `not_real_acceptance` in
+  `eval/results/agent_fixture_synthetic.json` — it is a contract check, never a real-model
+  S3/S4 number.
 
 **M4 is partial, not complete.** The real-model S3/S4 numbers need
 `SKILLPULSE_AGENT_LLM_ENABLED` plus an OpenAI-compatible credential and shared budget,
@@ -196,7 +203,15 @@ make test-integration  # real Postgres 16 and Redis 7 via testcontainers (needs 
 
 uv run skillpulse taxonomy            # print the loaded taxonomy
 uv run skillpulse eval extraction     # synthetic baseline F1 -> eval/results/
-uv run skillpulse eval agent          # fixture DB + fake model -> eval/results/
+uv run skillpulse eval agent          # tiny fixture + fake model -> eval/results/
+
+# canonical 64-question agent set on the frozen five-year synthetic fixture (fake model,
+# synthetic provenance; regenerate the dataset with `eval build-agent-cases`)
+uv run skillpulse eval build-agent-cases
+uv run skillpulse eval agent --dataset eval/datasets/agent_eval_cases.json \
+  --fixture-profile synthetic --source synthetic_fixture \
+  --out eval/results/agent_fixture_synthetic.json
+
 uv run skillpulse refresh-trends      # refresh the trend materialised views
 uv run uvicorn skillpulse.api.app:app # stats API on localhost:8000
 

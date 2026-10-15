@@ -89,6 +89,19 @@ def _share(posts_with_skill: int, total_posts: int) -> tuple[float | None, bool]
     return round(posts_with_skill / total_posts, 4), True
 
 
+def next_month_start(value: date) -> date:
+    """Return the first day of the month after ``value``.
+
+    A month range is inclusive of ``month_to``, but ``posts.month`` is stored at the
+    first of the month with a time component on SQLite. Comparing with ``<= 2021-12-01``
+    drops December there (the stored text is longer); an exclusive ``< 2022-01-01`` bound
+    is equivalent for month-start data and portable across SQLite and Postgres.
+    """
+    year = value.year + value.month // 12
+    month = value.month % 12 + 1
+    return date(year, month, 1)
+
+
 def months_back_cutoff(today: date, months: int) -> date:
     """Return the first day of the oldest month in a ``months``-long window.
 
@@ -116,8 +129,8 @@ def _segment_filters(
         conditions.append("month >= :month_from")
         params["month_from"] = month_from
     if month_to is not None:
-        conditions.append("month <= :month_to")
-        params["month_to"] = month_to
+        conditions.append("month < :month_to_exclusive")
+        params["month_to_exclusive"] = next_month_start(month_to)
     if months_back is not None:
         conditions.append("month >= :months_cutoff")
         params["months_cutoff"] = months_back_cutoff(today, months_back)

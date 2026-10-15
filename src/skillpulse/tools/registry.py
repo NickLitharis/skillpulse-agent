@@ -17,6 +17,7 @@ Design rules enforced here, not by convention:
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import Any
 
@@ -40,6 +41,7 @@ from skillpulse.trends import (
     ELIGIBLE_POSTS_DEFINITION,
     MIN_SAMPLE_POSTS,
     months_back_cutoff,
+    next_month_start,
     skill_trend,
     top_skills,
 )
@@ -51,6 +53,7 @@ SELECT p.id AS post_id, p.month AS month, e.company AS company,
        e.role_family AS role_family,
        CASE WHEN e.remote IS NULL THEN 'unknown'
             WHEN e.remote THEN 'true' ELSE 'false' END AS remote_state,
+       e.countries AS countries,
        e.is_fallback AS is_fallback, e.taxonomy_version AS taxonomy_version,
        e.extractor AS extractor
 FROM posts p
@@ -58,6 +61,17 @@ JOIN post_extractions e ON e.post_id = p.id
 WHERE p.is_deleted = false AND p.is_dead = false
   AND e.taxonomy_version = :taxonomy_version AND e.extractor = :extractor
 """
+
+
+def _country_pattern(country: str) -> str:
+    """Build a LIKE pattern that matches one quoted country token in the JSON array.
+
+    The stored value is a JSON list (``["Germany", "Netherlands"]``). Matching the
+    quoted token means ``Germany`` never matches a longer country name, and using
+    ``ESCAPE '!'`` keeps a stray ``%``/``_`` in the value from acting as a wildcard.
+    """
+    escaped = country.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    return f'%"{escaped}"%'
 
 
 class ToolInputError(ValueError):
@@ -76,8 +90,8 @@ def _filters(args: ToolFilters, conditions: list[str], params: dict[str, Any]) -
         conditions.append("p.month >= :month_from")
         params["month_from"] = args.month_from
     if args.month_to is not None:
-        conditions.append("p.month <= :month_to")
-        params["month_to"] = args.month_to
+        conditions.append("p.month < :month_to_exclusive")
+        params["month_to_exclusive"] = next_month_start(args.month_to)
     if args.months is not None:
         conditions.append("p.month >= :months_cutoff")
         params["months_cutoff"] = months_back_cutoff(date.today(), args.months)
@@ -124,6 +138,9 @@ def search_jobs(session: Session, taxonomy: Taxonomy, args: SearchJobsArgs) -> T
         "limit": args.limit,
     }
     _filters(args, conditions, params)
+    if args.country is not None:
+        conditions.append("e.countries LIKE :country_pattern ESCAPE '!'")
+        params["country_pattern"] = _country_pattern(args.country)
     if args.skill_id is not None:
         conditions.append(
             "EXISTS (SELECT 1 FROM post_skills ps WHERE ps.post_id = p.id "
@@ -159,6 +176,7 @@ def search_jobs(session: Session, taxonomy: Taxonomy, args: SearchJobsArgs) -> T
             "company": row.company,
             "role_family": row.role_family,
             "remote_state": row.remote_state,
+            "countries": json.loads(row.countries) if row.countries else [],
             "is_fallback": bool(row.is_fallback),
             "skills": skills_by_post[int(row.post_id)],
         }

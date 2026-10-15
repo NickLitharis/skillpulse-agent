@@ -46,9 +46,15 @@ class ToolFilters(BaseModel):
 
 
 class SearchJobsArgs(ToolFilters):
-    """``search_jobs``: up to 20 structured post rows, never post text."""
+    """``search_jobs``: up to 20 structured post rows, never post text.
+
+    ``country`` is the region filter from SPEC section 9: it matches the extracted
+    country list of a post (an exact quoted token in the stored JSON array), so a
+    lookup never matches a longer country name by accident.
+    """
 
     skill_id: str | None = None
+    country: str | None = Field(default=None, min_length=2, max_length=64)
     limit: int = Field(default=20, ge=1, le=20)
 
 

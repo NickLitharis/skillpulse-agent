@@ -127,12 +127,13 @@ def build_server(
         month_from: Annotated[date | None, Field()] = None,
         month_to: Annotated[date | None, Field()] = None,
         skill_id: Annotated[str | None, Field()] = None,
+        country: Annotated[str | None, Field(min_length=2, max_length=64)] = None,
         limit: Annotated[int, Field(ge=1, le=20)] = 20,
     ) -> dict[str, Any]:
         return _run(ctx, "search_jobs", {
             "extractor": extractor, "role_family": role_family, "remote": remote,
             "months": months, "month_from": month_from, "month_to": month_to,
-            "skill_id": skill_id, "limit": limit,
+            "skill_id": skill_id, "country": country, "limit": limit,
         })
 
     @server.tool(description="Most requested skills for a filter with eligible denominator.")
