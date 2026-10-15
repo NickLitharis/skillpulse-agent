@@ -41,7 +41,7 @@ session. The GUI (web) Inspector and Claude Desktop were **not** launched; see
 | --- | --- | --- |
 | Lint | `uv run ruff check src tests` | clean |
 | Types | `uv run mypy` | clean (strict, **43** source files) |
-| Full suite | `.venv/Scripts/python.exe -m pytest -q` | **154 passed, 3 skipped**, exit 0, wall 58 s (skips are the env-gated Inspector CLI tests; includes the real Postgres + Redis integration tests) |
+| Full suite | `.venv/Scripts/python.exe -m pytest -q` | **154 passed, 3 skipped**, exit 0, wall 62 s (skips are the env-gated Inspector CLI tests; includes the real Postgres + Redis integration tests) |
 | Real MCP SDK, stdio | `pytest tests/test_m5_mcp_protocol.py` | `tools/list` returns the 5 tools; a real `tools/call` roundtrip returns the shared payload; `skillpulse://taxonomy` reads back |
 | Real MCP SDK, HTTP | same file | subprocess `streamable-http` server; two sequential client sessions both succeed; bad `Host` → 421, bad `Origin` → 403, bad content-type → 400 |
 | Inspector CLI | `SKILLPULSE_RUN_INSPECTOR=1 pytest tests/test_m5_inspector.py` | **3 passed**, real `@modelcontextprotocol/inspector@2.11.0` on Node v24.11.1 (npx 11.6.2): `tools/list` over stdio and over HTTP, and `tools/call skill_counts top_n=2` over stdio |
