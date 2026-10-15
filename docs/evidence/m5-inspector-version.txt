@@ -1,4 +1,1 @@
-# @modelcontextprotocol/inspector version
-
-$ npx --yes @modelcontextprotocol/inspector@2.11.0 -V
 2.11.0

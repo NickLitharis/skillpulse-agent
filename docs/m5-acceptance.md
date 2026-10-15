@@ -44,13 +44,14 @@ session. The GUI (web) Inspector and Claude Desktop were **not** launched; see
 | Full suite | `.venv/Scripts/python.exe -m pytest -q` | **154 passed, 3 skipped**, exit 0, wall 62 s (skips are the env-gated Inspector CLI tests; includes the real Postgres + Redis integration tests) |
 | Real MCP SDK, stdio | `pytest tests/test_m5_mcp_protocol.py` | `tools/list` returns the 5 tools; a real `tools/call` roundtrip returns the shared payload; `skillpulse://taxonomy` reads back |
 | Real MCP SDK, HTTP | same file | subprocess `streamable-http` server; two sequential client sessions both succeed; bad `Host` → 421, bad `Origin` → 403, bad content-type → 400 |
-| Inspector CLI | `SKILLPULSE_RUN_INSPECTOR=1 pytest tests/test_m5_inspector.py` | **3 passed**, real `@modelcontextprotocol/inspector@2.11.0` on Node v24.11.1 (npx 11.6.2): `tools/list` over stdio and over HTTP, and `tools/call skill_counts top_n=2` over stdio |
+| Inspector CLI | `SKILLPULSE_RUN_INSPECTOR=1 uv run pytest tests/test_m5_inspector.py` | **3 passed**, real `@modelcontextprotocol/inspector@2.11.0` on Node v24.11.1 (npx 11.6.2): `tools/list` over stdio and over HTTP, and `tools/call skill_counts top_n=2` over stdio. Invoked as `npx --yes --package=@modelcontextprotocol/inspector@2.11.0 inspector …` (explicit binary: the package ships `inspector`/`mcp-inspector`/`mcpdo`, so npx must not guess), and the helper keeps stderr so a CLI failure is never silent. |
 | Negative control | remove the SQLite `PRAGMA query_only` guard in `readonly.py`, run `test_readonly_fixture_backend_rejects_a_raw_write` | **failed as required** (`DID NOT RAISE DBAPIError`); guard restored → the test and `test_readonly_session_rejects_orm_writes` both pass |
 | Latent M4 bug fixed | `search_jobs` with **no** filters built `... AND  ORDER BY` (invalid SQL) | fixed in `src/skillpulse/tools/registry.py`; regression test `tests/test_m4_tools_agent.py::test_search_jobs_without_filters_returns_rows` added |
 
 Saved Inspector evidence (bounded): `docs/evidence/m5-inspector-version.txt`,
 `docs/evidence/m5-inspector-tools-list.json` (~12 KB),
-`docs/evidence/m5-inspector-tools-call.json` (~3 KB). The `tools/call` output contains
+`docs/evidence/m5-inspector-tools-call.json` (~3 KB), each produced by the explicit
+`--package=` + `inspector` invocation above. The `tools/call` output contains
 the exact shared tool payload (`result_id`, `extractor`, `taxonomy_version`,
 `denominator_definition`, `coverage_caveat`, `sample_floor=30`).
 
