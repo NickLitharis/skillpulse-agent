@@ -1,0 +1,51 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"result_id\": \"tr-2bf2af76a0aee31a\",\n  \"tool\": \"skill_counts\",\n  \"args\": {\n    \"extractor\": \"baseline\",\n    \"role_family\": null,\n    \"remote\": null,\n    \"months\": null,\n    \"month_from\": null,\n    \"month_to\": null,\n    \"top_n\": 2\n  },\n  \"rows\": [\n    {\n      \"skill_id\": \"python\",\n      \"posts_with_skill\": 300,\n      \"total_posts\": 480,\n      \"share\": 0.625,\n      \"sample_sufficient\": true,\n      \"unit\": \"share of eligible posts\"\n    },\n    {\n      \"skill_id\": \"docker\",\n      \"posts_with_skill\": 240,\n      \"total_posts\": 480,\n      \"share\": 0.5,\n      \"sample_sufficient\": true,\n      \"unit\": \"share of eligible posts\"\n    }\n  ],\n  \"values\": {\n    \"denominator_definition\": \"posts with an extraction for the requested extractor and taxonomy version (eligible), not all stored posts\",\n    \"sample_floor\": 30\n  },\n  \"row_count\": 2,\n  \"truncated\": false,\n  \"extractor\": \"baseline\",\n  \"taxonomy_version\": \"2026-10-15\",\n  \"denominator_definition\": \"posts that have an extraction for the requested extractor and taxonomy version (eligible), not all stored posts\",\n  \"coverage_caveat\": \"Counts cover eligible stored posts only; Hacker News threads the project has not fetched are not represented. Data leans US/remote with few European and almost no Greek posts.\",\n  \"sample_floor\": 30\n}"
+    }
+  ],
+  "structuredContent": {
+    "result_id": "tr-2bf2af76a0aee31a",
+    "tool": "skill_counts",
+    "args": {
+      "extractor": "baseline",
+      "role_family": null,
+      "remote": null,
+      "months": null,
+      "month_from": null,
+      "month_to": null,
+      "top_n": 2
+    },
+    "rows": [
+      {
+        "skill_id": "python",
+        "posts_with_skill": 300,
+        "total_posts": 480,
+        "share": 0.625,
+        "sample_sufficient": true,
+        "unit": "share of eligible posts"
+      },
+      {
+        "skill_id": "docker",
+        "posts_with_skill": 240,
+        "total_posts": 480,
+        "share": 0.5,
+        "sample_sufficient": true,
+        "unit": "share of eligible posts"
+      }
+    ],
+    "values": {
+      "denominator_definition": "posts with an extraction for the requested extractor and taxonomy version (eligible), not all stored posts",
+      "sample_floor": 30
+    },
+    "row_count": 2,
+    "truncated": false,
+    "extractor": "baseline",
+    "taxonomy_version": "2026-10-15",
+    "denominator_definition": "posts that have an extraction for the requested extractor and taxonomy version (eligible), not all stored posts",
+    "coverage_caveat": "Counts cover eligible stored posts only; Hacker News threads the project has not fetched are not represented. Data leans US/remote with few European and almost no Greek posts.",
+    "sample_floor": 30
+  },
+  "isError": false
+}

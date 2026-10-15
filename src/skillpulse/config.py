@@ -67,6 +67,20 @@ class Settings(BaseSettings):
     tool_statement_timeout_ms: int = Field(default=5000, gt=0)
     tool_max_rows: int = Field(default=200, ge=1, le=1000)
 
+    # M5 MCP server. The streamable HTTP transport binds loopback by default and keeps
+    # DNS-rebinding protection on, so a deployment must opt in explicitly to any other
+    # interface or Host/Origin. stdio is unaffected.
+    mcp_host: str = "127.0.0.1"
+    mcp_port: int = Field(default=8765, ge=1, le=65535)
+    mcp_path: str = "/mcp"
+    mcp_allowed_hosts: list[str] = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+    mcp_allowed_origins: list[str] = [
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "http://[::1]:*",
+    ]
+    mcp_allow_non_loopback: bool = False
+
 
 def get_settings() -> Settings:
     """Return settings built from the current environment."""
