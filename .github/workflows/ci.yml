@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --frozen
+      - name: Ruff
+        run: uv run ruff check src tests
+      - name: Mypy
+        run: uv run mypy
+      - name: Unit tests
+        run: uv run pytest -m "not integration" --cov=skillpulse --cov-report=term-missing
+
+  integration:
+    runs-on: ubuntu-latest
+    # Postgres is provided by testcontainers using the runner's Docker.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --frozen
+      - name: Integration tests (Postgres via testcontainers)
+        run: uv run pytest -m integration

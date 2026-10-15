@@ -1,0 +1,31 @@
+# Quick local run without Kubernetes (spec section 12).
+# Postgres + Redis for the M2 Celery workers.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: skillpulse
+      POSTGRES_PASSWORD: skillpulse
+      POSTGRES_DB: skillpulse
+    ports:
+      - "5433:5432"
+    volumes:
+      - skillpulse_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skillpulse -d skillpulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  skillpulse_pgdata:
