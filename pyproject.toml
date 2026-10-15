@@ -16,10 +16,12 @@ dependencies = [
     "pyyaml>=6.0.3",
     "fastapi>=0.143.2",
     "langgraph>=1.2.15",
+    "mcp==2.3.0",
 ]
 
 [project.scripts]
 skillpulse = "skillpulse.cli:main"
+skillpulse-mcp = "skillpulse.mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -45,6 +47,7 @@ testpaths = ["tests"]
 addopts = "-ra"
 markers = [
     "integration: tests that need Docker (testcontainers Postgres)",
+    "inspector: tests that need Node/npx and the MCP Inspector CLI",
 ]
 
 [tool.ruff]

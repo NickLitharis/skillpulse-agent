@@ -1,0 +1,505 @@
+{
+  "tools": [
+    {
+      "name": "search_jobs",
+      "description": "Structured post rows for filters; max 20; never post text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "extractor": {
+            "default": "baseline",
+            "enum": [
+              "baseline",
+              "llm"
+            ],
+            "title": "Extractor",
+            "type": "string"
+          },
+          "role_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role Family"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remote"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "maximum": 240,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Months"
+          },
+          "month_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month From"
+          },
+          "month_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month To"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Skill Id"
+          },
+          "limit": {
+            "default": 20,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "search_jobsArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "search_jobsDictOutput"
+      }
+    },
+    {
+      "name": "skill_counts",
+      "description": "Most requested skills for a filter with eligible denominator.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "extractor": {
+            "default": "baseline",
+            "enum": [
+              "baseline",
+              "llm"
+            ],
+            "title": "Extractor",
+            "type": "string"
+          },
+          "role_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role Family"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remote"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "maximum": 240,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Months"
+          },
+          "month_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month From"
+          },
+          "month_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month To"
+          },
+          "top_n": {
+            "default": 10,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Top N",
+            "type": "integer"
+          }
+        },
+        "title": "skill_countsArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "skill_countsDictOutput"
+      }
+    },
+    {
+      "name": "skill_trend",
+      "description": "Monthly share of one skill with numerator and denominator.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "extractor": {
+            "default": "baseline",
+            "enum": [
+              "baseline",
+              "llm"
+            ],
+            "title": "Extractor",
+            "type": "string"
+          },
+          "role_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role Family"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remote"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "maximum": 240,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Months"
+          },
+          "month_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month From"
+          },
+          "month_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month To"
+          }
+        },
+        "required": [
+          "skill_id"
+        ],
+        "title": "skill_trendArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "skill_trendDictOutput"
+      }
+    },
+    {
+      "name": "compare_skills",
+      "description": "Side-by-side counts and trends for 1 to 5 skills.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "skill_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Skill Ids",
+            "type": "array"
+          },
+          "extractor": {
+            "default": "baseline",
+            "enum": [
+              "baseline",
+              "llm"
+            ],
+            "title": "Extractor",
+            "type": "string"
+          },
+          "role_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role Family"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remote"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "maximum": 240,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Months"
+          },
+          "month_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month From"
+          },
+          "month_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month To"
+          }
+        },
+        "required": [
+          "skill_ids"
+        ],
+        "title": "compare_skillsArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "compare_skillsDictOutput"
+      }
+    },
+    {
+      "name": "match_cv",
+      "description": "CV skills versus most demanded skills; CV text is never stored.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cv_text": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Cv Text",
+            "type": "string"
+          },
+          "extractor": {
+            "default": "baseline",
+            "enum": [
+              "baseline",
+              "llm"
+            ],
+            "title": "Extractor",
+            "type": "string"
+          },
+          "role_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Role Family"
+          },
+          "remote": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Remote"
+          },
+          "months": {
+            "anyOf": [
+              {
+                "maximum": 240,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Months"
+          },
+          "month_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month From"
+          },
+          "month_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Month To"
+          },
+          "top_n": {
+            "default": 10,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Top N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cv_text"
+        ],
+        "title": "match_cvArguments"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true,
+        "title": "match_cvDictOutput"
+      }
+    }
+  ]
+}

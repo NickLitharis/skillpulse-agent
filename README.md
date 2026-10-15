@@ -9,6 +9,28 @@ Full design: [SPEC.md](SPEC.md). Architecture decisions: [docs/decisions.md](doc
 
 ## Status
 
+Milestone **M5 — MCP server (stdio + HTTP)** (partial):
+
+- `skillpulse.mcp_server` exposes the **same five read-only tools** over **stdio** and
+  **streamable HTTP** using the official `mcp` SDK (`MCPServer`), not a hand-rolled
+  protocol; every call goes through the same `skillpulse.tools.ToolRuntime` registry,
+  read-only session, bounds and `result_id` — there is no MCP-only query path and no
+  SQL/filesystem/shell tool,
+- the MCP `inputSchema` mirrors the shared typed bounded arguments, `skillpulse://taxonomy`
+  is a read-only resource, and errors are sanitised to safe tool errors (the DSN is never
+  returned),
+- HTTP binds **loopback** by default with DNS-rebinding protection on (bad `Host` → 421,
+  bad `Origin` → 403); a non-loopback bind is refused unless
+  `SKILLPULSE_MCP_ALLOW_NON_LOOPBACK=true`; stdio keeps stdout protocol-only and logs to
+  stderr,
+- real SDK protocol tests cover stdio and an HTTP subprocess, plus a real MCP Inspector
+  CLI roundtrip (`@modelcontextprotocol/inspector@2.11.0`).
+
+**M5 is partial, not complete.** "Works in Claude Desktop" (S8) is **blocked**: it needs
+the Desktop GUI and a global client-config edit, which this round did not perform. A
+ready example config and the manual check are in
+[docs/m5-acceptance.md](docs/m5-acceptance.md).
+
 Milestone **M4 — tools, LangGraph agent, `/v1/ask`, fixture DB and agent eval** (partial):
 
 - `skillpulse.tools` holds the five read-only tools (`search_jobs`, `skill_counts`,
@@ -120,6 +142,25 @@ back-fill by hand, queue one `fetch_thread` task:
 uv run celery -A skillpulse.workers.app call skillpulse.workers.tasks.fetch_thread --args='[49922569]'
 ```
 
+## MCP server
+
+The MCP server reuses the same read-only tools as the agent, so it needs no separate
+SQL or credentials beyond the read-only database session:
+
+```bash
+# stdio (for MCP clients such as Claude Desktop)
+.venv/Scripts/python.exe -m skillpulse.mcp_server --transport stdio
+.venv/Scripts/python.exe -m skillpulse.mcp_server --transport stdio --fixture   # fixture DB, no Postgres
+
+# streamable HTTP (loopback only, DNS-rebinding protection on)
+.venv/Scripts/python.exe -m skillpulse.mcp_server --transport streamable-http --port 8765
+```
+
+`skillpulse-mcp` is installed as an alias of the same entry point. A ready Claude
+Desktop config is at [docs/claude-desktop-mcp.example.json](docs/claude-desktop-mcp.example.json);
+the transport, security and blocked-gate details are in
+[docs/m5-acceptance.md](docs/m5-acceptance.md).
+
 ## Layout
 
 ```
@@ -131,7 +172,8 @@ src/skillpulse/
   fetch_service.py    find threads, fetch a thread, back-fill
   extraction/         taxonomy loader, baseline + LLM extractors, persistence, service
   trends.py           trend statistics over the materialised views
-  tools/              the five read-only tools (shared by the agent and, in M5, MCP)
+  tools/              the five read-only tools (shared by the agent and the MCP server)
+  mcp_server/         MCP server: stdio + streamable HTTP over the shared tools
   agent/              LangGraph graph, planner/drafter models, grounding check
   api/app.py          FastAPI stats endpoints (/v1/skills, /v1/coverage) and /v1/ask SSE
   eval/               labelled-set extraction scoring, fixture DB and agent evaluation
@@ -157,6 +199,9 @@ uv run skillpulse eval extraction     # synthetic baseline F1 -> eval/results/
 uv run skillpulse eval agent          # fixture DB + fake model -> eval/results/
 uv run skillpulse refresh-trends      # refresh the trend materialised views
 uv run uvicorn skillpulse.api.app:app # stats API on localhost:8000
+
+# real MCP Inspector CLI roundtrip (needs Node/npx; pinned inspector 2.11.0)
+SKILLPULSE_RUN_INSPECTOR=1 .venv/Scripts/python.exe -m pytest tests/test_m5_inspector.py
 ```
 
 `POST /v1/ask` needs a configured agent model; without `SKILLPULSE_AGENT_LLM_ENABLED` it

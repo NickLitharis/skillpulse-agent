@@ -79,10 +79,22 @@
     {
       "id": "M5",
       "title": "MCP server (stdio + HTTP)",
-      "status": "not_started",
-      "evidence": ["The five shared tools now exist and are importable from skillpulse.tools with typed schemas and content-addressed result ids; the MCP server can wrap them without reimplementing SQL."],
-      "remaining_gates": ["Implement the stdio and streamable HTTP MCP transports over the existing tool module, plus the skillpulse://taxonomy resource."],
-      "spec_acceptance": "Not started."
+      "status": "partial",
+      "evidence": [
+        "skillpulse.mcp_server (official mcp==2.3.0 SDK, MCPServer) exposes the same five M4 read-only tools over stdio and streamable HTTP; every call goes through the shared ToolRuntime, registry, read-only session, bounds and result_id, with no MCP-only query path and no SQL/filesystem/shell tool.",
+        "Typed bounded arguments are mirrored in the MCP inputSchema (verified against the shared Pydantic models); skillpulse://taxonomy is a read-only resource; errors are sanitised to safe tool errors (ToolInputError/validation text, 'database unavailable', generic fallback) and the DB DSN is never returned.",
+        "HTTP defaults to loopback with DNS-rebinding protection on, bad Host -> 421 and bad Origin -> 403, and a non-loopback bind is refused unless SKILLPULSE_MCP_ALLOW_NON_LOOPBACK=true; stdio keeps stdout protocol-only and logs to stderr; the engine/ToolRuntime live on a lifespan and are disposed on shutdown.",
+        "Real protocol tests: tests/test_m5_mcp_protocol.py drives the real SDK client over stdio and an HTTP subprocess, with negative controls (unknown tool, bad args, oversized cv_text, unknown skill), a DB-failure safety check, schema/model parity, a raw-write denial proving read-only, and process-tree teardown on Windows.",
+        "Real MCP Inspector CLI roundtrip (@modelcontextprotocol/inspector@2.11.0, Node v24.11.1, npx 11.6.2): tools/list over stdio and HTTP and tools/call skill_counts top_n=2 over stdio, tests/test_m5_inspector.py (env-gated SKILLPULSE_RUN_INSPECTOR=1), evidence in docs/evidence/.",
+        "Fixed a latent M4 bug found by M5: search_jobs with no filters built invalid SQL ('... AND  ORDER BY'); regression test tests/test_m4_tools_agent.py::test_search_jobs_without_filters_returns_rows added.",
+        "Suite: 154 passed, 3 skipped (env-gated Inspector) in 58 s; ruff clean; strict mypy clean (43 files); negative control (SQLite query_only guard removed) failed as required, then restored green."
+      ],
+      "remaining_gates": [
+        "Claude Desktop end-to-end (S8 'works in Claude Desktop'): BLOCKED - needs the GUI and a global client-config edit; not validated this round. Ready example config + manual check are in docs/m5-acceptance.md and docs/claude-desktop-mcp.example.json.",
+        "Web (GUI) MCP Inspector and the demo GIF: not run/produced (need a browser/GUI); only the pinned CLI was used. No GIF is shipped and none is faked (M7 owns the GIF).",
+        "Hosted/public MCP endpoint: needs M6 (Helm/Terraform/k3d); the HTTP transport was validated on loopback only."
+      ],
+      "spec_acceptance": "MCP server (stdio + HTTP) exposing the same read-only tools: delivered and green (real SDK + Inspector CLI). Works in MCP Inspector: CLI roundtrip met; GUI not claimed. Works in Claude Desktop (S8): BLOCKED, not validated (recorded with a ready config + manual check)."
     },
     {
       "id": "M6",

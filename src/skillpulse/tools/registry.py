@@ -132,7 +132,8 @@ def search_jobs(session: Session, taxonomy: Taxonomy, args: SearchJobsArgs) -> T
         )
         params["skill_id"] = args.skill_id
     where = " AND ".join(conditions)
-    sql = text(f"{_SEARCH_BASE} AND {where} ORDER BY p.month DESC, p.id DESC LIMIT :limit")
+    query = _SEARCH_BASE if not where else f"{_SEARCH_BASE} AND {where}"
+    sql = text(f"{query} ORDER BY p.month DESC, p.id DESC LIMIT :limit")
     raw = session.execute(sql, params).all()
 
     post_ids = [int(row.post_id) for row in raw]

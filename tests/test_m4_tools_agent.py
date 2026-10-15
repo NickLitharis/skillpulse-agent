@@ -95,6 +95,15 @@ def test_search_jobs_never_returns_post_text(runtime: ToolRuntime) -> None:
     assert result.values["contains_post_text"] is False
 
 
+def test_search_jobs_without_filters_returns_rows(runtime: ToolRuntime) -> None:
+    # Regression: an unfiltered search once built "... WHERE ... AND  ORDER BY" (bad SQL).
+    result = runtime.call("search_jobs", {"limit": 3})
+    assert result.row_count == 3
+    assert result.values["contains_post_text"] is False
+    for row in result.rows:
+        assert "text_clean" not in row and "text_raw" not in row
+
+
 def test_tool_arguments_are_bounded(runtime: ToolRuntime) -> None:
     with pytest.raises(ValidationError):  # pydantic validation, before any SQL
         runtime.call("skill_counts", {"top_n": 999})

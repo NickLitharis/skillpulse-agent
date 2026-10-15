@@ -1,0 +1,17 @@
+{
+  "_comment": "Example Claude Desktop MCP config for SkillPulse (M5). Replace the two absolute paths with this checkout's Python and repo root. Not validated against the Claude Desktop GUI (see docs/m5-acceptance.md, 'Blocked gates').",
+  "mcpServers": {
+    "skillpulse": {
+      "command": "C:/path/to/skillpulse-agent/.venv/Scripts/python.exe",
+      "args": [
+        "-m",
+        "skillpulse.mcp_server",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "SKILLPULSE_DATABASE_URL": "postgresql+psycopg2://skillpulse:skillpulse@localhost:5433/skillpulse"
+      }
+    }
+  }
+}
