@@ -1,27 +1,47 @@
-"""FastAPI stats service (SPEC section 10, M3 endpoints).
+"""FastAPI service: read-only stats (M3) and the streaming agent (M4).
 
-Only the read-only trend and coverage endpoints live here. ``/v1/ask`` (the agent) is
-M4 and the MCP server is M5, so this module deliberately has no LLM dependency: every
-number comes from :mod:`skillpulse.trends`, i.e. from SQL over the trend views.
-
-The database session factory is injected through :func:`create_app`, which is what lets
-the tests run the real endpoints against the test Postgres database.
+Numbers come from :mod:`skillpulse.trends` and :mod:`skillpulse.tools` only; the model
+never writes SQL. ``/v1/ask`` streams the agent run over SSE with exactly the SPEC
+events: ``plan``, ``tool_call``, ``tool_result``, ``token``, ``done`` (``trace_id``,
+``partial``, ``grounded``) and ``error``. A client disconnect cancels the run at the next
+node boundary, Postgres being down returns ``503`` before streaming starts, and internal
+errors are logged but never returned to the client.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import asyncio
+import json
+import logging
+import threading
+from collections.abc import AsyncIterator, Iterator
 from datetime import date
+from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.concurrency import run_in_threadpool
 
+from skillpulse.agent.graph import run_agent
+from skillpulse.agent.models import AgentModel, build_agent_model
+from skillpulse.config import Settings, get_settings
 from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
 from skillpulse.runtime import build_session_factory
+from skillpulse.tools import ToolRuntime
 from skillpulse.trends import ELIGIBLE_POSTS_DEFINITION, coverage, skill_trend, top_skills
 
 ALLOWED_EXTRACTORS = ("baseline", "llm")
+logger = logging.getLogger(__name__)
+
+
+class AskRequest(BaseModel):
+    """The only accepted ``/v1/ask`` input: a bounded natural-language question."""
+
+    question: str = Field(min_length=1, max_length=2000)
 
 
 def _as_dict(count: object) -> dict[str, object]:
@@ -34,13 +54,28 @@ def _as_dict(count: object) -> dict[str, object]:
     }
 
 
+def _sse(event: str, data: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
 def create_app(
     session_factory: sessionmaker[Session] | None = None,
     taxonomy: Taxonomy | None = None,
+    *,
+    agent_model: AgentModel | None = None,
+    settings: Settings | None = None,
 ) -> FastAPI:
-    """Build the app, optionally with an injected session factory and taxonomy."""
+    """Build the app with an injected factory/taxonomy/model (used by the tests)."""
+    settings = settings or get_settings()
     factory = session_factory or build_session_factory()
     tax = taxonomy or load_taxonomy()
+    model = agent_model if agent_model is not None else build_agent_model(settings)
+    runtime = ToolRuntime(
+        factory,
+        tax,
+        statement_timeout_ms=settings.tool_statement_timeout_ms,
+        max_rows=settings.tool_max_rows,
+    )
 
     def get_session() -> Iterator[Session]:
         session = factory()
@@ -149,7 +184,91 @@ def create_app(
             ],
         }
 
+    @app.post("/v1/ask")
+    async def ask(request: Request, payload: AskRequest) -> StreamingResponse:
+        if model is None:
+            raise HTTPException(
+                status_code=503,
+                detail="agent model is not configured (SKILLPULSE_AGENT_LLM_ENABLED is false)",
+            )
+        try:
+            await run_in_threadpool(_ping, factory)
+        except (OperationalError, DBAPIError) as exc:
+            logger.warning("database not ready for /v1/ask: %s", type(exc).__name__)
+            raise HTTPException(status_code=503, detail="database unavailable") from None
+
+        cancel_event = threading.Event()
+
+        async def watch_disconnect() -> None:
+            try:
+                while not cancel_event.is_set():
+                    if await request.is_disconnected():
+                        cancel_event.set()
+                        return
+                    await asyncio.sleep(0.1)
+            except asyncio.CancelledError:  # pragma: no cover - shutdown race
+                return
+
+        async def event_stream() -> AsyncIterator[str]:
+            watcher = asyncio.create_task(watch_disconnect())
+            try:
+                run = await run_in_threadpool(
+                    _run_agent_sync, payload.question, cancel_event, runtime, model, tax, settings
+                )
+            finally:
+                watcher.cancel()
+            for event in run.events:
+                if event["event"] == "done":
+                    continue
+                yield _sse(event["event"], event["data"])
+            if run.error and run.error != "cancelled":
+                yield _sse(
+                    "error",
+                    {"code": run.error, "message": "the agent could not complete the request"},
+                )
+            for chunk in _token_chunks(run.answer):
+                yield _sse("token", {"text": chunk})
+            yield _sse(
+                "done",
+                {
+                    "trace_id": run.trace_id,
+                    "partial": run.partial,
+                    "grounded": run.grounded,
+                },
+            )
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
     return app
+
+
+def _ping(factory: sessionmaker[Session]) -> None:
+    with factory() as session:
+        session.execute(text("SELECT 1"))
+
+
+def _run_agent_sync(
+    question: str,
+    cancel_event: threading.Event,
+    runtime: ToolRuntime,
+    model: AgentModel,
+    tax: Taxonomy,
+    settings: Settings,
+) -> Any:
+    return run_agent(
+        question,
+        runtime=runtime,
+        model=model,
+        taxonomy=tax,
+        max_tool_calls=settings.agent_max_tool_calls,
+        overall_timeout_seconds=settings.agent_overall_timeout_seconds,
+        cancel_check=cancel_event.is_set,
+    )
+
+
+def _token_chunks(answer: str, size: int = 6) -> list[str]:
+    words = answer.split(" ")
+    return [" ".join(words[index : index + size]) for index in range(0, len(words), size)]
 
 
 app = create_app()

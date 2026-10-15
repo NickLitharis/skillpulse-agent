@@ -16,9 +16,16 @@ from collections.abc import Callable
 from typing import Any
 
 import redis
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from skillpulse.config import get_settings
+from skillpulse.db import make_engine
+from skillpulse.extraction.baseline import BaselineExtractor
+from skillpulse.extraction.llm import LLMExtractor
+from skillpulse.extraction.providers import build_extractor
+from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
 from skillpulse.fetch_service import (
     MAX_SUBMITTED_TO_SCAN,
     ThreadFetchResult,
@@ -28,14 +35,18 @@ from skillpulse.fetch_service import (
 from skillpulse.hn_client import HackerNewsClient, HackerNewsError
 from skillpulse.repository import UpsertResult
 from skillpulse.runtime import build_client, build_session_factory
+from skillpulse.trends import refresh_trend_views
 from skillpulse.workers.app import app
 from skillpulse.workers.redis_state import RedisRateLimiter, RedisThreadLock
+from skillpulse.workers.skills import ExtractionBatchResult, run_extract_pending
 
 logger = logging.getLogger(__name__)
 
 FETCH_THREAD_TASK = "skillpulse.workers.tasks.fetch_thread"
 DISCOVER_THREADS_TASK = "skillpulse.workers.tasks.discover_threads"
 REFRESH_RECENT_THREADS_TASK = "skillpulse.workers.tasks.refresh_recent_threads"
+EXTRACT_PENDING_TASK = "skillpulse.workers.tasks.extract_pending"
+REFRESH_TREND_VIEWS_TASK = "skillpulse.workers.tasks.refresh_trend_views"
 
 # Current + previous month (SPEC section 8.3).
 RECENT_THREADS = 2
@@ -181,3 +192,80 @@ def refresh_recent_threads() -> dict[str, Any]:
     with worker_client(redis_client) as client:
         thread_ids = run_discover_threads(client, limit=RECENT_THREADS)
     return queue_thread_tasks(thread_ids)
+
+
+def run_refresh_trend_views(engine: Engine) -> None:
+    """Refresh both materialised views; ``REFRESH ... CONCURRENTLY`` needs AUTOCOMMIT.
+
+    The AUTOCOMMIT connection lives in :func:`skillpulse.trends.refresh_trend_views`, so
+    this wrapper never opens its own transaction around the refresh (which Postgres
+    rejects for ``CONCURRENTLY``).
+    """
+    refresh_trend_views(engine, concurrently=True)
+
+
+@app.task(name=REFRESH_TREND_VIEWS_TASK)
+def refresh_trend_views_task() -> dict[str, Any]:
+    """Nightly beat task: refresh the trend views after extraction (SPEC section 8)."""
+    engine = make_engine(get_settings().database_url)
+    try:
+        run_refresh_trend_views(engine)
+    finally:
+        engine.dispose()
+    return {"status": "ok", "views": ["skill_trend_mv", "skill_segment_mv"]}
+
+
+def build_worker_extractor(taxonomy: Taxonomy, redis_client: redis.Redis) -> LLMExtractor | None:
+    """Build the LLM extractor through the default-closed provider gate (D007).
+
+    The shared Redis budget the provider factory needs is the same Redis the workers
+    already use for politeness and locks. While ``SKILLPULSE_LLM_ENABLED`` is false this
+    returns ``None`` and extraction stays on the offline baseline.
+    """
+    return build_extractor(taxonomy, redis_client=redis_client)
+
+
+@app.task(
+    name=EXTRACT_PENDING_TASK,
+    autoretry_for=(OperationalError,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=_settings.celery_task_max_retries,
+)
+def extract_pending(
+    limit: int | None = None, batch_size: int | None = None
+) -> dict[str, Any]:
+    """Extract pending posts in bounded batches (``worker-skills``).
+
+    A transient database ``OperationalError`` is retried at most
+    ``SKILLPULSE_CELERY_TASK_MAX_RETRIES`` times, matching the fetch task. The extractor
+    gate is checked here: a provider failure inside a post falls back to the baseline
+    (stored flagged) rather than failing the whole run.
+    """
+    settings = get_settings()
+    taxonomy = load_taxonomy()
+    baseline = BaselineExtractor(taxonomy)
+    redis_client = redis.Redis.from_url(settings.redis_url)
+    try:
+        llm = build_worker_extractor(taxonomy, redis_client)
+    except Exception:
+        redis_client.close()
+        raise
+    try:
+        result: ExtractionBatchResult = run_extract_pending(
+            build_session_factory(),
+            taxonomy=taxonomy,
+            baseline=baseline,
+            llm=llm,
+            limit=limit if limit is not None else settings.skill_extract_max_per_run,
+            batch_size=batch_size if batch_size is not None else settings.skill_extract_batch_size,
+        )
+    finally:
+        redis_client.close()
+    return {
+        "status": "ok",
+        "extractor": "llm" if llm is not None else "baseline",
+        "processed": result.processed,
+        "llm": result.llm,
+        "fallback": result.fallback,
+    }
