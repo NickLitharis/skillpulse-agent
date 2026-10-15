@@ -1,0 +1,14 @@
+# Role families (SPEC sections 8.2 and 15). The extraction prompt may only return one
+# of these ids; aliases are used for the deterministic baseline hint and for tests.
+version: "2026-10-15"
+role_families:
+  - {id: backend, name: Backend, aliases: [back-end, backend engineer, server-side]}
+  - {id: frontend, name: Frontend, aliases: [front-end, frontend engineer, ui engineer]}
+  - {id: fullstack, name: Full-stack, aliases: [full stack, full-stack engineer]}
+  - {id: data, name: Data, aliases: [data engineer, data scientist, analytics engineer]}
+  - {id: ml, name: Machine Learning, aliases: [machine learning engineer, ml engineer, ai engineer]}
+  - {id: infra, name: Infrastructure, aliases: [devops, sre, platform engineer, infrastructure engineer]}
+  - {id: mobile, name: Mobile, aliases: [ios engineer, android engineer, mobile engineer]}
+  - {id: security, name: Security, aliases: [security engineer, appsec]}
+  - {id: management, name: Engineering Management, aliases: [engineering manager, tech lead, lead]}
+  - {id: other, name: Other, aliases: []}

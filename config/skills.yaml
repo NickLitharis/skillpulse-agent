@@ -1,0 +1,365 @@
+# Skill taxonomy (SPEC section 8.1). The LLM may only return ids defined here; the
+# baseline matches ids through these aliases. Adding a skill is a taxonomy change, so
+# bump `version` and the extraction tables keep old results separate.
+version: "2026-10-15"
+skills:
+  # languages
+  - {id: python, name: Python, category: language, aliases: [py, python3]}
+  - {id: javascript, name: JavaScript, category: language, aliases: [js, ecmascript]}
+  - {id: typescript, name: TypeScript, category: language, aliases: [ts]}
+  - {id: java, name: Java, category: language, aliases: []}
+  - {id: kotlin, name: Kotlin, category: language, aliases: []}
+  - {id: scala, name: Scala, category: language, aliases: []}
+  - {id: go, name: Go, category: language, aliases: [golang]}
+  - {id: rust, name: Rust, category: language, aliases: []}
+  - {id: c, name: C, category: language, aliases: []}
+  - {id: cpp, name: "C++", category: language, aliases: [cplusplus]}
+  - {id: csharp, name: "C#", category: language, aliases: [dotnet, ".net"]}
+  - {id: ruby, name: Ruby, category: language, aliases: []}
+  - {id: php, name: PHP, category: language, aliases: []}
+  - {id: swift, name: Swift, category: language, aliases: []}
+  - {id: r, name: R, category: language, aliases: [r-lang]}
+  - {id: matlab, name: MATLAB, category: language, aliases: []}
+  - {id: elixir, name: Elixir, category: language, aliases: []}
+  - {id: haskell, name: Haskell, category: language, aliases: []}
+  - {id: clojure, name: Clojure, category: language, aliases: []}
+  - {id: dart, name: Dart, category: language, aliases: []}
+  - {id: perl, name: Perl, category: language, aliases: []}
+  - {id: shell, name: Shell, category: language, aliases: [bash, shell-scripting]}
+  - {id: powershell, name: PowerShell, category: language, aliases: [pwsh]}
+  # frontend
+  - {id: react, name: React, category: frontend, aliases: [reactjs, "react.js"]}
+  - {id: nextjs, name: Next.js, category: frontend, aliases: ["next.js"]}
+  - {id: vue, name: Vue, category: frontend, aliases: [vuejs, "vue.js"]}
+  - {id: angular, name: Angular, category: frontend, aliases: [angularjs]}
+  - {id: svelte, name: Svelte, category: frontend, aliases: [sveltekit]}
+  - {id: redux, name: Redux, category: frontend, aliases: []}
+  - {id: html, name: HTML, category: frontend, aliases: [html5]}
+  - {id: css, name: CSS, category: frontend, aliases: [css3, scss, sass]}
+  - {id: tailwind, name: Tailwind CSS, category: frontend, aliases: [tailwindcss]}
+  - {id: webpack, name: Webpack, category: frontend, aliases: []}
+  - {id: vite, name: Vite, category: frontend, aliases: []}
+  - {id: accessibility, name: Accessibility, category: frontend, aliases: [a11y, wcag]}
+  - {id: d3, name: D3.js, category: frontend, aliases: [d3js]}
+  # backend
+  - {id: nodejs, name: Node.js, category: backend, aliases: ["node.js", node, nodejs]}
+  - {id: django, name: Django, category: backend, aliases: []}
+  - {id: flask, name: Flask, category: backend, aliases: []}
+  - {id: fastapi, name: FastAPI, category: backend, aliases: []}
+  - {id: spring, name: Spring, category: backend, aliases: [spring-boot, springboot]}
+  - {id: rails, name: Ruby on Rails, category: backend, aliases: [ruby-on-rails]}
+  - {id: express, name: Express, category: backend, aliases: ["express.js", expressjs]}
+  - {id: laravel, name: Laravel, category: backend, aliases: []}
+  - {id: grpc, name: gRPC, category: backend, aliases: []}
+  - {id: rest, name: REST, category: backend, aliases: [restful, "rest api"]}
+  - {id: graphql, name: GraphQL, category: backend, aliases: []}
+  - {id: microservices, name: Microservices, category: backend, aliases: [micro-services]}
+  - {id: kafka, name: Kafka, category: backend, aliases: [apache-kafka]}
+  - {id: rabbitmq, name: RabbitMQ, category: backend, aliases: []}
+  - {id: celery, name: Celery, category: backend, aliases: []}
+  # mobile
+  - {id: android, name: Android, category: mobile, aliases: []}
+  - {id: ios, name: iOS, category: mobile, aliases: []}
+  - {id: react-native, name: React Native, category: mobile, aliases: [reactnative]}
+  - {id: flutter, name: Flutter, category: mobile, aliases: []}
+  - {id: swiftui, name: SwiftUI, category: mobile, aliases: []}
+  - {id: jetpack-compose, name: Jetpack Compose, category: mobile, aliases: [compose-multiplatform]}
+  # data and databases
+  - {id: postgres, name: PostgreSQL, category: database, aliases: [postgresql, psql]}
+  - {id: mysql, name: MySQL, category: database, aliases: []}
+  - {id: mongodb, name: MongoDB, category: database, aliases: [mongo]}
+  - {id: redis, name: Redis, category: database, aliases: []}
+  - {id: elasticsearch, name: Elasticsearch, category: database, aliases: [elastic-search, elastic]}
+  - {id: sqlite, name: SQLite, category: database, aliases: []}
+  - {id: dynamodb, name: DynamoDB, category: database, aliases: []}
+  - {id: cassandra, name: Cassandra, category: database, aliases: []}
+  - {id: snowflake, name: Snowflake, category: database, aliases: []}
+  - {id: bigquery, name: BigQuery, category: database, aliases: []}
+  - {id: redshift, name: Redshift, category: database, aliases: []}
+  - {id: clickhouse, name: ClickHouse, category: database, aliases: []}
+  - {id: neo4j, name: Neo4j, category: database, aliases: []}
+  - {id: sql, name: SQL, category: database, aliases: [ansi-sql]}
+  - {id: sqlalchemy, name: SQLAlchemy, category: database, aliases: []}
+  - {id: hadoop, name: Hadoop, category: data, aliases: []}
+  - {id: spark, name: Apache Spark, category: data, aliases: [pyspark, spark]}
+  - {id: airflow, name: Airflow, category: data, aliases: [apache-airflow]}
+  - {id: dbt, name: dbt, category: data, aliases: [data-build-tool]}
+  - {id: etl, name: ETL, category: data, aliases: [elt, data-pipelines]}
+  # machine learning
+  - {id: machine-learning, name: Machine Learning, category: ml, aliases: [ml]}
+  - {id: deep-learning, name: Deep Learning, category: ml, aliases: [dl]}
+  - {id: pytorch, name: PyTorch, category: ml, aliases: [torch]}
+  - {id: tensorflow, name: TensorFlow, category: ml, aliases: [tf]}
+  - {id: scikit-learn, name: scikit-learn, category: ml, aliases: [sklearn, scikit]}
+  - {id: numpy, name: NumPy, category: ml, aliases: []}
+  - {id: pandas, name: pandas, category: ml, aliases: []}
+  - {id: llm, name: LLMs, category: ml, aliases: [llm, large-language-models]}
+  - {id: nlp, name: NLP, category: ml, aliases: [natural-language-processing]}
+  - {id: computer-vision, name: Computer Vision, category: ml, aliases: [cv-ml, opencv, "computer vision"]}
+  - {id: langchain, name: LangChain, category: ml, aliases: []}
+  - {id: langgraph, name: LangGraph, category: ml, aliases: []}
+  - {id: rag, name: RAG, category: ml, aliases: [retrieval-augmented-generation]}
+  - {id: mlops, name: MLOps, category: ml, aliases: []}
+  - {id: prompt-engineering, name: Prompt Engineering, category: ml, aliases: []}
+  - {id: transformers, name: Transformers, category: ml, aliases: [huggingface]}
+  - {id: jupyter, name: Jupyter, category: ml, aliases: [notebooks]}
+  # infra and cloud
+  - {id: kubernetes, name: Kubernetes, category: infra, aliases: [k8s, kube]}
+  - {id: docker, name: Docker, category: infra, aliases: [containers, containerization]}
+  - {id: terraform, name: Terraform, category: infra, aliases: [tf-infra]}
+  - {id: ansible, name: Ansible, category: infra, aliases: []}
+  - {id: helm, name: Helm, category: infra, aliases: []}
+  - {id: jenkins, name: Jenkins, category: infra, aliases: []}
+  - {id: github-actions, name: GitHub Actions, category: infra, aliases: []}
+  - {id: gitlab-ci, name: GitLab CI, category: infra, aliases: [gitlab-ci-cd]}
+  - {id: ci-cd, name: CI/CD, category: infra, aliases: [ci, continuous-integration, continuous-delivery]}
+  - {id: aws, name: AWS, category: cloud, aliases: [amazon-web-services]}
+  - {id: gcp, name: GCP, category: cloud, aliases: [google-cloud-platform, google-cloud, "google cloud"]}
+  - {id: azure, name: Azure, category: cloud, aliases: [microsoft-azure]}
+  - {id: cloudflare, name: Cloudflare, category: cloud, aliases: []}
+  - {id: serverless, name: Serverless, category: cloud, aliases: [lambda-serverless]}
+  - {id: aws-lambda, name: AWS Lambda, category: cloud, aliases: [lambda]}
+  - {id: linux, name: Linux, category: infra, aliases: [unix]}
+  - {id: nginx, name: nginx, category: infra, aliases: []}
+  - {id: prometheus, name: Prometheus, category: infra, aliases: []}
+  - {id: grafana, name: Grafana, category: infra, aliases: []}
+  - {id: datadog, name: Datadog, category: infra, aliases: []}
+  - {id: opentelemetry, name: OpenTelemetry, category: infra, aliases: [otel]}
+  # testing
+  - {id: pytest, name: pytest, category: testing, aliases: []}
+  - {id: unittest, name: unittest, category: testing, aliases: []}
+  - {id: jest, name: Jest, category: testing, aliases: []}
+  - {id: selenium, name: Selenium, category: testing, aliases: []}
+  - {id: cypress, name: Cypress, category: testing, aliases: []}
+  - {id: playwright, name: Playwright, category: testing, aliases: []}
+  - {id: testcontainers, name: Testcontainers, category: testing, aliases: []}
+  - {id: tdd, name: TDD, category: testing, aliases: [test-driven-development]}
+  # security
+  - {id: oauth, name: OAuth, category: security, aliases: [oauth2]}
+  - {id: jwt, name: JWT, category: security, aliases: [json-web-tokens]}
+  - {id: oidc, name: OIDC, category: security, aliases: [openid-connect]}
+  - {id: saml, name: SAML, category: security, aliases: []}
+  - {id: tls, name: TLS, category: security, aliases: [ssl]}
+  - {id: pentest, name: Penetration Testing, category: security, aliases: [penetration-testing]}
+  - {id: siem, name: SIEM, category: security, aliases: []}
+  - {id: iam, name: IAM, category: security, aliases: []}
+  - {id: zero-trust, name: Zero Trust, category: security, aliases: []}
+  # tooling and practice
+  - {id: git, name: Git, category: tooling, aliases: []}
+  - {id: github, name: GitHub, category: tooling, aliases: []}
+  - {id: gitlab, name: GitLab, category: tooling, aliases: []}
+  - {id: jira, name: Jira, category: tooling, aliases: []}
+  - {id: confluence, name: Confluence, category: tooling, aliases: []}
+  - {id: vscode, name: VS Code, category: tooling, aliases: [visual-studio-code]}
+  - {id: figma, name: Figma, category: tooling, aliases: []}
+  - {id: postman, name: Postman, category: tooling, aliases: []}
+  - {id: openapi, name: OpenAPI, category: tooling, aliases: [swagger]}
+  - {id: agile, name: Agile, category: practice, aliases: [scrum]}
+  - {id: kanban, name: Kanban, category: practice, aliases: []}
+  - {id: code-review, name: Code Review, category: practice, aliases: [code-reviews]}
+  - {id: mentoring, name: Mentoring, category: practice, aliases: [mentorship]}
+  - {id: pair-programming, name: Pair Programming, category: practice, aliases: []}
+  - {id: system-design, name: System Design, category: practice, aliases: [architecture]}
+  - {id: documentation, name: Documentation, category: practice, aliases: []}
+  - {id: on-call, name: On-call, category: practice, aliases: [oncall]}
+  # --- extended taxonomy (M3): real skills and aliases, no filler ---
+  # additional languages
+  - {id: fortran, name: Fortran, category: language, aliases: []}
+  - {id: cobol, name: COBOL, category: language, aliases: []}
+  - {id: lua, name: Lua, category: language, aliases: []}
+  - {id: groovy, name: Groovy, category: language, aliases: []}
+  - {id: julia, name: Julia, category: language, aliases: []}
+  - {id: objective-c, name: "Objective-C", category: language, aliases: [objc, "objective c"]}
+  - {id: solidity, name: Solidity, category: language, aliases: []}
+  - {id: zig, name: Zig, category: language, aliases: []}
+  - {id: nim, name: Nim, category: language, aliases: []}
+  - {id: erlang, name: Erlang, category: language, aliases: []}
+  - {id: ocaml, name: OCaml, category: language, aliases: []}
+  - {id: fsharp, name: "F#", category: language, aliases: [f-sharp]}
+  - {id: vbnet, name: "VB.NET", category: language, aliases: ["vb.net", visual-basic]}
+  - {id: vba, name: VBA, category: language, aliases: []}
+  - {id: assembly, name: Assembly, category: language, aliases: [asm, x86-assembly]}
+  - {id: crystal, name: Crystal, category: language, aliases: []}
+  - {id: ada, name: Ada, category: language, aliases: []}
+  - {id: elm, name: Elm, category: language, aliases: []}
+  # additional frontend
+  - {id: gatsby, name: Gatsby, category: frontend, aliases: [gatsbyjs]}
+  - {id: remix, name: Remix, category: frontend, aliases: [remix-run]}
+  - {id: nuxt, name: Nuxt, category: frontend, aliases: [nuxtjs, "nuxt.js"]}
+  - {id: astro, name: Astro, category: frontend, aliases: [astrojs]}
+  - {id: ember, name: Ember, category: frontend, aliases: [emberjs]}
+  - {id: backbone, name: Backbone.js, category: frontend, aliases: [backbonejs]}
+  - {id: jquery, name: jQuery, category: frontend, aliases: []}
+  - {id: storybook, name: Storybook, category: frontend, aliases: [storybookjs]}
+  - {id: bootstrap, name: Bootstrap, category: frontend, aliases: []}
+  - {id: rxjs, name: RxJS, category: frontend, aliases: []}
+  - {id: threejs, name: Three.js, category: frontend, aliases: ["three.js"]}
+  - {id: webgl, name: WebGL, category: frontend, aliases: []}
+  - {id: pwa, name: PWA, category: frontend, aliases: [progressive-web-apps]}
+  - {id: micro-frontends, name: Micro-frontends, category: frontend, aliases: [microfrontends]}
+  # additional backend
+  - {id: nestjs, name: NestJS, category: backend, aliases: ["nest.js"]}
+  - {id: fastify, name: Fastify, category: backend, aliases: []}
+  - {id: symfony, name: Symfony, category: backend, aliases: []}
+  - {id: aspnet, name: "ASP.NET", category: backend, aliases: ["asp.net", aspnetcore, ".net core", "dotnet core"]}
+  - {id: quarkus, name: Quarkus, category: backend, aliases: []}
+  - {id: phoenix, name: Phoenix, category: backend, aliases: [phoenix-framework]}
+  - {id: sinatra, name: Sinatra, category: backend, aliases: []}
+  - {id: tornado, name: Tornado, category: backend, aliases: []}
+  - {id: aiohttp, name: aiohttp, category: backend, aliases: []}
+  - {id: starlette, name: Starlette, category: backend, aliases: []}
+  - {id: sequelize, name: Sequelize, category: backend, aliases: []}
+  - {id: prisma, name: Prisma, category: backend, aliases: []}
+  - {id: hibernate, name: Hibernate, category: backend, aliases: []}
+  - {id: jpa, name: JPA, category: backend, aliases: [jakarta-persistence]}
+  - {id: orm, name: ORM, category: backend, aliases: [object-relational-mapping]}
+  - {id: websockets, name: WebSockets, category: backend, aliases: [websocket]}
+  # additional mobile and desktop clients
+  - {id: ionic, name: Ionic, category: mobile, aliases: []}
+  - {id: xamarin, name: Xamarin, category: mobile, aliases: []}
+  - {id: unity, name: Unity, category: mobile, aliases: [unity3d]}
+  - {id: electron, name: Electron, category: mobile, aliases: [electronjs]}
+  - {id: tauri, name: Tauri, category: mobile, aliases: []}
+  - {id: capacitor, name: Capacitor, category: mobile, aliases: []}
+  # additional databases and data modelling
+  - {id: mariadb, name: MariaDB, category: database, aliases: []}
+  - {id: oracle-db, name: Oracle Database, category: database, aliases: [oracle, "oracle database"]}
+  - {id: sqlserver, name: "SQL Server", category: database, aliases: [mssql, microsoft-sql-server]}
+  - {id: cockroachdb, name: CockroachDB, category: database, aliases: [cockroach]}
+  - {id: timescaledb, name: TimescaleDB, category: database, aliases: [timescale]}
+  - {id: influxdb, name: InfluxDB, category: database, aliases: [influx]}
+  - {id: questdb, name: QuestDB, category: database, aliases: []}
+  - {id: firebase, name: Firebase, category: database, aliases: [firestore]}
+  - {id: supabase, name: Supabase, category: database, aliases: []}
+  - {id: teradata, name: Teradata, category: database, aliases: []}
+  - {id: database-design, name: Database Design, category: database, aliases: [data-modeling, schema-design]}
+  - {id: query-optimization, name: Query Optimization, category: database, aliases: [sql-optimization, query-tuning]}
+  # additional data engineering
+  - {id: tableau, name: Tableau, category: data, aliases: []}
+  - {id: powerbi, name: "Power BI", category: data, aliases: [power-bi]}
+  - {id: looker, name: Looker, category: data, aliases: []}
+  - {id: databricks, name: Databricks, category: data, aliases: []}
+  - {id: dagster, name: Dagster, category: data, aliases: []}
+  - {id: presto, name: Presto, category: data, aliases: []}
+  - {id: trino, name: Trino, category: data, aliases: []}
+  - {id: hive, name: Hive, category: data, aliases: [apache-hive]}
+  - {id: flink, name: Apache Flink, category: data, aliases: [flink]}
+  - {id: beam, name: Apache Beam, category: data, aliases: [apache-beam]}
+  - {id: kinesis, name: Kinesis, category: data, aliases: [aws-kinesis]}
+  - {id: data-warehouse, name: Data Warehouse, category: data, aliases: [data-warehousing]}
+  # additional machine learning
+  - {id: keras, name: Keras, category: ml, aliases: []}
+  - {id: xgboost, name: XGBoost, category: ml, aliases: []}
+  - {id: lightgbm, name: LightGBM, category: ml, aliases: []}
+  - {id: catboost, name: CatBoost, category: ml, aliases: []}
+  - {id: spacy, name: spaCy, category: ml, aliases: []}
+  - {id: nltk, name: NLTK, category: ml, aliases: []}
+  - {id: gensim, name: Gensim, category: ml, aliases: []}
+  - {id: generative-ai, name: Generative AI, category: ml, aliases: [genai, "generative ai"]}
+  - {id: fine-tuning, name: Fine-tuning, category: ml, aliases: [finetuning, "fine tuning"]}
+  - {id: reinforcement-learning, name: Reinforcement Learning, category: ml, aliases: [rl]}
+  - {id: recommender-systems, name: Recommender Systems, category: ml, aliases: [recommendation-systems, recsys, "recommender systems", "recommendation systems"]}
+  - {id: feature-engineering, name: Feature Engineering, category: ml, aliases: []}
+  - {id: statistics, name: Statistics, category: ml, aliases: [stats]}
+  - {id: ab-testing, name: A/B Testing, category: ml, aliases: ["a/b testing", ab-test]}
+  - {id: time-series, name: Time Series, category: ml, aliases: [time-series-analysis]}
+  - {id: model-deployment, name: Model Deployment, category: ml, aliases: [model-serving, inference]}
+  # additional infrastructure
+  - {id: circleci, name: CircleCI, category: infra, aliases: ["circle ci"]}
+  - {id: argocd, name: Argo CD, category: infra, aliases: [argo-cd, argo]}
+  - {id: istio, name: Istio, category: infra, aliases: []}
+  - {id: linkerd, name: Linkerd, category: infra, aliases: []}
+  - {id: consul, name: Consul, category: infra, aliases: [hashicorp-consul]}
+  - {id: vault, name: Vault, category: infra, aliases: [hashicorp-vault]}
+  - {id: packer, name: Packer, category: infra, aliases: [hashicorp-packer]}
+  - {id: puppet, name: Puppet, category: infra, aliases: []}
+  - {id: chef, name: Chef, category: infra, aliases: [chef-infra]}
+  - {id: kustomize, name: Kustomize, category: infra, aliases: []}
+  - {id: fluentd, name: Fluentd, category: infra, aliases: [fluentbit, fluent-bit]}
+  - {id: logstash, name: Logstash, category: infra, aliases: []}
+  - {id: kibana, name: Kibana, category: infra, aliases: []}
+  - {id: jaeger, name: Jaeger, category: infra, aliases: []}
+  - {id: zipkin, name: Zipkin, category: infra, aliases: []}
+  - {id: envoy, name: Envoy, category: infra, aliases: [envoy-proxy]}
+  - {id: traefik, name: Traefik, category: infra, aliases: []}
+  - {id: haproxy, name: HAProxy, category: infra, aliases: []}
+  - {id: kong, name: Kong, category: infra, aliases: [kong-gateway]}
+  - {id: saltstack, name: SaltStack, category: infra, aliases: [salt]}
+  # additional cloud
+  - {id: digitalocean, name: DigitalOcean, category: cloud, aliases: [digital-ocean]}
+  - {id: heroku, name: Heroku, category: cloud, aliases: []}
+  - {id: vercel, name: Vercel, category: cloud, aliases: []}
+  - {id: netlify, name: Netlify, category: cloud, aliases: []}
+  - {id: openshift, name: OpenShift, category: cloud, aliases: [red-hat-openshift]}
+  - {id: aws-ec2, name: AWS EC2, category: cloud, aliases: [ec2]}
+  - {id: aws-s3, name: AWS S3, category: cloud, aliases: [s3]}
+  - {id: aws-ecs, name: AWS ECS, category: cloud, aliases: [ecs]}
+  - {id: aws-eks, name: AWS EKS, category: cloud, aliases: [eks]}
+  - {id: gke, name: GKE, category: cloud, aliases: [google-kubernetes-engine]}
+  - {id: aws-rds, name: AWS RDS, category: cloud, aliases: [rds]}
+  - {id: cloudfront, name: CloudFront, category: cloud, aliases: [aws-cloudfront]}
+  - {id: route-53, name: Route 53, category: cloud, aliases: [route53]}
+  - {id: eventbridge, name: EventBridge, category: cloud, aliases: [aws-eventbridge]}
+  - {id: cloud-run, name: Cloud Run, category: cloud, aliases: [google-cloud-run]}
+  # additional testing
+  - {id: vitest, name: Vitest, category: testing, aliases: []}
+  - {id: mocha, name: Mocha, category: testing, aliases: [mochajs]}
+  - {id: junit, name: JUnit, category: testing, aliases: []}
+  - {id: testng, name: TestNG, category: testing, aliases: []}
+  - {id: k6, name: k6, category: testing, aliases: [k6-load-testing]}
+  - {id: jmeter, name: JMeter, category: testing, aliases: [apache-jmeter]}
+  - {id: locust, name: Locust, category: testing, aliases: [locustio]}
+  - {id: gatling, name: Gatling, category: testing, aliases: []}
+  - {id: load-testing, name: Load Testing, category: testing, aliases: [performance-testing]}
+  - {id: contract-testing, name: Contract Testing, category: testing, aliases: [pact]}
+  - {id: mocking, name: Mocking, category: testing, aliases: [test-doubles, mocks]}
+  - {id: mutation-testing, name: Mutation Testing, category: testing, aliases: []}
+  # additional security
+  - {id: devsecops, name: DevSecOps, category: security, aliases: [dev-sec-ops]}
+  - {id: sast, name: SAST, category: security, aliases: [static-analysis]}
+  - {id: dast, name: DAST, category: security, aliases: [dynamic-analysis]}
+  - {id: threat-modeling, name: Threat Modeling, category: security, aliases: [threat-modelling]}
+  - {id: cryptography, name: Cryptography, category: security, aliases: [crypto]}
+  - {id: pki, name: PKI, category: security, aliases: [public-key-infrastructure]}
+  - {id: sso, name: SSO, category: security, aliases: [single-sign-on]}
+  - {id: keycloak, name: Keycloak, category: security, aliases: []}
+  - {id: okta, name: Okta, category: security, aliases: []}
+  - {id: auth0, name: Auth0, category: security, aliases: []}
+  - {id: vulnerability-management, name: Vulnerability Management, category: security, aliases: [vulnerability-scanning]}
+  # additional tooling
+  - {id: sentry, name: Sentry, category: tooling, aliases: []}
+  - {id: pagerduty, name: PagerDuty, category: tooling, aliases: []}
+  - {id: opsgenie, name: Opsgenie, category: tooling, aliases: []}
+  - {id: sonarqube, name: SonarQube, category: tooling, aliases: [sonar]}
+  - {id: eslint, name: ESLint, category: tooling, aliases: []}
+  - {id: prettier, name: Prettier, category: tooling, aliases: []}
+  - {id: cmake, name: CMake, category: tooling, aliases: []}
+  - {id: bazel, name: Bazel, category: tooling, aliases: []}
+  - {id: gradle, name: Gradle, category: tooling, aliases: []}
+  - {id: maven, name: Maven, category: tooling, aliases: [apache-maven]}
+  - {id: npm, name: npm, category: tooling, aliases: []}
+  - {id: yarn, name: Yarn, category: tooling, aliases: []}
+  - {id: pnpm, name: pnpm, category: tooling, aliases: []}
+  - {id: poetry, name: Poetry, category: tooling, aliases: [python-poetry]}
+  - {id: gnu-make, name: "GNU Make", category: tooling, aliases: [makefile]}
+  - {id: trello, name: Trello, category: tooling, aliases: []}
+  - {id: asana, name: Asana, category: tooling, aliases: []}
+  - {id: notion, name: Notion, category: tooling, aliases: []}
+  - {id: miro, name: Miro, category: tooling, aliases: []}
+  # additional practice
+  - {id: observability, name: Observability, category: practice, aliases: []}
+  - {id: incident-response, name: Incident Response, category: practice, aliases: [postmortems, post-mortems]}
+  - {id: technical-writing, name: Technical Writing, category: practice, aliases: []}
+  - {id: product-management, name: Product Management, category: practice, aliases: [product-manager]}
+  - {id: coaching, name: Coaching, category: practice, aliases: []}
+  - {id: hiring, name: Hiring, category: practice, aliases: [recruiting]}
+  - {id: interviewing, name: Interviewing, category: practice, aliases: [interviews]}
+  - {id: refactoring, name: Refactoring, category: practice, aliases: []}
+  - {id: design-patterns, name: Design Patterns, category: practice, aliases: [design-pattern]}
+  - {id: clean-code, name: Clean Code, category: practice, aliases: [clean-architecture]}
+  - {id: ddd, name: Domain-Driven Design, category: practice, aliases: [domain-driven-design]}
+  - {id: event-driven, name: Event-Driven Architecture, category: practice, aliases: [event-driven-architecture, eda]}
+  - {id: api-design, name: API Design, category: practice, aliases: ["api design"]}
+  - {id: performance-tuning, name: Performance Tuning, category: practice, aliases: [performance-optimization, profiling]}
+  - {id: async-communication, name: Async Communication, category: practice, aliases: [written-communication]}
+  - {id: knowledge-sharing, name: Knowledge Sharing, category: practice, aliases: [tech-talks]}

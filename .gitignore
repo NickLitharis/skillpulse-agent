@@ -32,6 +32,8 @@ infra/**/*.tfstate.*
 # Eval outputs (later milestones)
 eval/results/*
 !eval/results/.gitkeep
+# The latest committed summary is the only result that ships (SPEC section 15).
+!eval/results/baseline_synthetic.json
 
 # OS / editor
 .DS_Store

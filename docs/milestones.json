@@ -1,0 +1,94 @@
+{
+  "generated_at": "2026-10-15",
+  "repo": "github.com/NickLitharis/skillpulse-agent",
+  "source_of_truth": "SPEC.md section 16",
+  "status_values": ["complete", "partial", "blocked", "not_started"],
+  "milestones": [
+    {
+      "id": "M1",
+      "title": "Repo skeleton, ci.yml, HN client, thread finder, Postgres schema, Docker Compose; fetch the last 12 months",
+      "status": "blocked",
+      "evidence": [
+        "HN client, token bucket, retries and text cleaning implemented; 52-test baseline suite green.",
+        "Idempotent upsert proven on real Postgres (S5): fetching a thread twice creates zero new posts.",
+        "Live-fetch gate in runtime.build_client refuses all live HN access by default (D006).",
+        "docs/terms.md records the Y Combinator terms check; authorization is unresolved.",
+        "Existing local DB holds only thread 49922569 (October 2026, 318 posts); 11 of the required 12 months were never fetched."
+      ],
+      "remaining_gates": [
+        "Owner authorization covering HN bulk read, storage and reuse, recorded in docs/terms.md.",
+        "Then re-run the last-12-months fetch and measure posts per month."
+      ],
+      "spec_acceptance": "Y Combinator terms read and recorded: done. Posts per month measured: NOT met (11/12 months missing). Fetch twice -> no duplicates (S5): met."
+    },
+    {
+      "id": "M2",
+      "title": "Celery + beat, full back-fill since 2011, updates with edits/deletes, retries, fetch_runs",
+      "status": "partial",
+      "evidence": [
+        "Celery app, beat schedule, Redis-wide token bucket and per-thread lock implemented.",
+        "Forced mid-run failure marks the run failed with its resume point and the next run finishes with no skip/duplicate (S6) on real Postgres.",
+        "Real Redis worker smoke test green with a localhost HTTP stub.",
+        "Full back-fill since 2011 has NOT run: it needs the same unresolved authorization as M1."
+      ],
+      "remaining_gates": [
+        "The M1 authorization gate, then run the bounded/full back-fill.",
+        "Measure discovery coverage again (the D001 551-item scan is a past record, not a new measurement)."
+      ],
+      "spec_acceptance": "S6 resume: met. Full 2011 back-fill: NOT delivered."
+    },
+    {
+      "id": "M3",
+      "title": "Taxonomy, baseline + LLM extraction, trend views, stats endpoints",
+      "status": "partial",
+      "evidence": [
+        "Taxonomy: config/skills.yaml (336 skills, 10 role families) with a validating loader; duplicate ids/aliases rejected.",
+        "Baseline: deterministic word-boundary alias matcher with negation, nice-to-have required flags and multilingual normalisation.",
+        "LLM: provider-agnostic structured extractor with taxonomy validation, once-only JSON retry and prompt-injection isolation; the real OpenAI-compatible adapter (providers.py) is gated off by default, key only from SKILLPULSE_LLM_API_KEY, and fails closed without a shared atomic Redis daily budget; on failure the service stores the baseline flagged as fallback (offline baseline always usable).",
+        "Persistence: migration 0002 adds post_extractions, post_skills, skill_trend_mv and skill_segment_mv (unique indexes for CONCURRENTLY refresh; 3-state remote_state so remote=false excludes unknown).",
+        "Trends: exact numerator/denominator per month and segment; total_posts is eligible posts for the requested extractor/taxonomy (not full-source coverage, which /v1/coverage reports); shares withheld below 30 posts.",
+        "Stats API on FastAPI: /healthz, /readyz, /v1/skills/top, /v1/skills/{id}/trend, /v1/coverage.",
+        "Labelled synthetic set of 40 posts (eval/datasets/synthetic_extraction.json); baseline micro-F1 0.9910 / macro-F1 0.9783 recorded in eval/results/baseline_synthetic.json (synthetic, not real data).",
+        "Integration tests run the real Postgres 16 migration, the CONCURRENTLY refresh and the real endpoints."
+      ],
+      "remaining_gates": [
+        "Real-LLM F1 (S2 >= 0.85) and the real-HN labelled set (~150 posts) are BLOCKED: the LLM gate is off and no provider credential/base URL is configured, and labelling real HN post text needs the M1 authorization gate.",
+        "The baseline-vs-LLM table cannot be completed until both real runs exist; the synthetic baseline F1 is not a real-data S2 result.",
+        "The Celery worker-skills task and nightly view refresh schedule are not wired yet."
+      ],
+      "spec_acceptance": "Extraction set labelled: synthetic set done, real-HN set NOT done. Baseline vs LLM F1 recorded (S2): baseline on synthetic recorded, real LLM F1 NOT recorded."
+    },
+    {
+      "id": "M4",
+      "title": "Tools module, LangGraph agent, grounding check, /v1/ask, fixture DB, agent eval",
+      "status": "not_started",
+      "evidence": ["The read-only trend/stats layer M4 builds on now exists (skillpulse.trends + /v1/skills endpoints)."],
+      "remaining_gates": ["Build tools, agent graph, grounding check, fixture DB and agent eval.", "Depends on M3 completion for an extraction source to query."],
+      "spec_acceptance": "Not started."
+    },
+    {
+      "id": "M5",
+      "title": "MCP server (stdio + HTTP)",
+      "status": "not_started",
+      "evidence": ["No MCP code yet; the five tools it will share live in M4."],
+      "remaining_gates": ["Implement the shared tools module (M4), then the stdio and HTTP MCP transports."],
+      "spec_acceptance": "Not started."
+    },
+    {
+      "id": "M6",
+      "title": "Helm chart, Terraform, k3d make up, deploy-check.yml",
+      "status": "not_started",
+      "evidence": ["docker-compose.yml and GitHub lint-and-test/integration CI exist from M1/M2."],
+      "remaining_gates": ["Helm chart, Terraform, k3d flow, deploy-check workflow."],
+      "spec_acceptance": "Not started."
+    },
+    {
+      "id": "M7",
+      "title": "Metrics, Langfuse, release.yml, README polish, demo GIF, CV line",
+      "status": "not_started",
+      "evidence": ["Nothing started; depends on M4-M6."],
+      "remaining_gates": ["Prometheus metrics, Langfuse tracing, release workflow, demo assets, CV line."],
+      "spec_acceptance": "Not started."
+    }
+  ]
+}

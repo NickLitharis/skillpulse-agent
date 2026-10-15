@@ -1,0 +1,24 @@
+{
+  "extractor": "baseline",
+  "dataset": "synthetic_extraction.json",
+  "source": "synthetic",
+  "gate": "real HN post text and a real LLM provider are gated (docs/terms.md, D006)",
+  "report": {
+    "extractor": "baseline",
+    "dataset": "synthetic_extraction.json",
+    "posts": 40,
+    "micro_precision": 0.994,
+    "micro_recall": 0.988,
+    "micro_f1": 0.991,
+    "macro_f1": 0.9783,
+    "required_accuracy": 0.9939,
+    "unknown_term_rate": 0.0,
+    "false_positives": [
+      "s40:go"
+    ],
+    "false_negatives": [
+      "s31:aws",
+      "s32:aws"
+    ]
+  }
+}
