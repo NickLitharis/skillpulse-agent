@@ -114,3 +114,69 @@ class Skill(Base):
     aliases: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (UniqueConstraint("name", name="uq_skills_name"),)
+
+
+class PostExtractionRow(Base):
+    """One extractor's structured result for one post (SPEC section 8.2.3).
+
+    The extractor and taxonomy version are part of the uniqueness rule, so re-running a
+    new taxonomy never mixes with results produced by an older one.
+    """
+
+    __tablename__ = "post_extractions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    post_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False
+    )
+    extractor: Mapped[str] = mapped_column(String(16), nullable=False)
+    taxonomy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    company: Mapped[str | None] = mapped_column(Text, nullable=True)
+    role_family: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    seniority: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    countries: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    unknown_terms: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    is_fallback: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "post_id", "extractor", "taxonomy_version", name="uq_post_extractions_identity"
+        ),
+        CheckConstraint(
+            "extractor IN ('baseline', 'llm') AND taxonomy_version <> ''",
+            name="ck_post_extractions_identity",
+        ),
+        Index("ix_post_extractions_post_id", "post_id"),
+        Index("ix_post_extractions_query", "taxonomy_version", "extractor"),
+    )
+
+
+class PostSkillRow(Base):
+    """One extracted skill for one post, from one extractor (SPEC section 8.2)."""
+
+    __tablename__ = "post_skills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    post_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False
+    )
+    skill_id: Mapped[str] = mapped_column(String(64), ForeignKey("skills.id"), nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    extractor: Mapped[str] = mapped_column(String(16), nullable=False)
+    taxonomy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "post_id", "skill_id", "extractor", "taxonomy_version",
+            name="uq_post_skills_identity",
+        ),
+        Index("ix_post_skills_post_id", "post_id"),
+        Index("ix_post_skills_skill_id", "skill_id"),
+    )

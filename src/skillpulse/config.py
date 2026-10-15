@@ -31,6 +31,19 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    # LLM extraction (SPEC section 8.2). Off by default, exactly like the live-fetch
+    # gate: no provider call is made unless SKILLPULSE_LLM_ENABLED is true AND a base
+    # URL, a model and a shared (Redis) token budget are configured. llm_api_key is read
+    # only from this explicit setting, never from ambient agent credentials. When the
+    # gate is off or unconfigured, extraction stays on the offline baseline.
+    llm_enabled: bool = False
+    llm_base_url: str = ""
+    llm_model: str = ""
+    llm_api_key: str = ""
+    llm_timeout_seconds: float = Field(default=60.0, gt=0)
+    llm_max_output_tokens: int = Field(default=512, gt=0)
+    llm_daily_token_budget: int = Field(default=2_000_000, gt=0)
+
 
 def get_settings() -> Settings:
     """Return settings built from the current environment."""

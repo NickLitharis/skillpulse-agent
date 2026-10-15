@@ -108,3 +108,43 @@ the gate after an explicit authorization decision is recorded in `docs/terms.md`
 use in-process fakes or a local HTTP stub and set the variable explicitly where the real
 worker path is exercised (`tests/test_workers_redis_smoke.py`); the stub is localhost,
 not Hacker News.
+
+## D007 — M3: taxonomy in YAML, baseline fallback, trend views, no real LLM yet (2026-10-15)
+
+**Decision.** The taxonomy lives in `config/skills.yaml` (plus `role_families.yaml`) and
+is validated on load; both extractors return the same Pydantic shape. The deterministic
+baseline is the fallback, not a debug path: if the LLM is unconfigured, over budget, or
+returns invalid JSON twice, the baseline result is stored with `is_fallback=true` so the
+post still counts in trends and is retried next run. Trend numbers come from two
+materialised views (`skill_trend_mv`, `skill_segment_mv`) that keep the numerator
+(posts mentioning a skill) and denominator (posts with an extraction) side by side, and
+a share is suppressed below 30 posts. The LLM provider is behind a `StructuredLLMClient`
+protocol with prompt-injection isolation, wired to a real OpenAI-compatible adapter
+(`providers.py`) and a daily token budget.
+
+**Fleet budget (safety).** A process-local token counter is not a cost guard: N workers
+would each spend the full daily limit. Real provider calls therefore use
+`RedisDailyBudget` — an atomic `INCRBY`-in-Lua reserve on a UTC-day key — and
+`build_extractor` **fails closed** (raises `LLMUnavailableError`) when the gate is open
+but Redis or the base URL/model are missing. The gate is off by default and
+`SKILLPULSE_LLM_API_KEY` is the only credential source. The offline baseline never needs
+a budget or a network, so extraction stays usable with the gate closed.
+
+**3-state remote and the denominator.** `skill_segment_mv` stores `remote_state` as
+`'true'`/`'false'`/`'unknown'` rather than coalescing a null to `false`, so a
+`remote=false` filter cannot silently include posts whose remote status was never
+extracted. In every trend result `total_posts` means *eligible* posts — those with an
+extraction for the requested extractor and taxonomy version — which is deliberately not
+full-source coverage; `/v1/coverage` reports stored posts separately.
+
+**Why.** SPEC sections 8.2 and 8.2.5. A fallback that is the same code as the baseline
+means one tested path; storing the fallback flagged keeps extraction coverage visible
+instead of dropping posts. Exact numerator/denominator in the views makes the "share of
+posts" claim auditable and lets the API withhold small-sample shares without losing the
+counts. No real LLM call is made in this round: there is no authorized provider
+credential, so the LLM is exercised only through contract tests with a fake client.
+
+**Consequence.** M3 is partial. The real-LLM F1 (S2) and the real-HN labelled set stay
+blocked until M1 authorization and a provider credential exist. The synthetic baseline
+F1 in `eval/results/baseline_synthetic.json` is explicitly synthetic and is not a
+real-data S2 result.
