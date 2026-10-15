@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     celery_task_max_retries: int = Field(default=3, ge=0)
     celery_update_interval_seconds: int = Field(default=6 * 3600, gt=0)
     thread_lock_ttl_seconds: int = Field(default=900, gt=0)
+    # ``worker-skills`` (SPEC 8.2.4): extract in bounded batches so one task cannot run
+    # for hours, and refresh the trend views nightly.
+    skill_extract_interval_seconds: int = Field(default=6 * 3600, gt=0)
+    skill_extract_batch_size: int = Field(default=200, gt=0)
+    skill_extract_max_per_run: int = Field(default=2000, gt=0)
+    trend_refresh_hour_utc: int = Field(default=2, ge=0, le=23)
+    trend_refresh_minute_utc: int = Field(default=30, ge=0, le=59)
 
     log_level: str = "INFO"
 
@@ -43,6 +50,22 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=60.0, gt=0)
     llm_max_output_tokens: int = Field(default=512, gt=0)
     llm_daily_token_budget: int = Field(default=2_000_000, gt=0)
+
+    # M4 agent (SPEC sections 9-10). Off by default, exactly like the extraction LLM:
+    # no agent model call is made unless the gate is on AND a base URL and model are set.
+    # The agent never reads ambient credentials; the key comes only from this setting.
+    agent_llm_enabled: bool = False
+    agent_llm_base_url: str = ""
+    agent_llm_model: str = ""
+    agent_llm_api_key: str = ""
+    agent_llm_timeout_seconds: float = Field(default=20.0, gt=0)
+    agent_max_tool_calls: int = Field(default=6, ge=1, le=20)
+    agent_overall_timeout_seconds: float = Field(default=60.0, gt=0)
+    agent_daily_token_budget: int = Field(default=2_000_000, gt=0)
+    # Read-only tool sessions fail closed: every tool query runs in a READ ONLY
+    # transaction with a statement timeout and a hard row cap (SPEC section 9).
+    tool_statement_timeout_ms: int = Field(default=5000, gt=0)
+    tool_max_rows: int = Field(default=200, ge=1, le=1000)
 
 
 def get_settings() -> Settings:

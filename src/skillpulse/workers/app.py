@@ -16,12 +16,17 @@ Run the scheduler that refreshes the current and previous month every 6 hours:
 from __future__ import annotations
 
 from celery import Celery
+from celery.schedules import crontab
 
 from skillpulse.config import get_settings
 
 TASK_MODULES = ["skillpulse.workers.tasks"]
 REFRESH_RECENT_TASK = "skillpulse.workers.tasks.refresh_recent_threads"
+EXTRACT_PENDING_TASK = "skillpulse.workers.tasks.extract_pending"
+REFRESH_TREND_VIEWS_TASK = "skillpulse.workers.tasks.refresh_trend_views"
 BEAT_REFRESH_RECENT = "refresh-recent-threads"
+BEAT_EXTRACT_PENDING = "extract-pending-posts"
+BEAT_REFRESH_TRENDS = "refresh-trend-views"
 
 
 def make_celery_app(redis_url: str | None = None) -> Celery:
@@ -49,7 +54,24 @@ def make_celery_app(redis_url: str | None = None) -> Celery:
             BEAT_REFRESH_RECENT: {
                 "task": REFRESH_RECENT_TASK,
                 "schedule": float(settings.celery_update_interval_seconds),
-            }
+            },
+            # SPEC section 8.2.4: keep extracting newly fetched posts in bounded runs.
+            BEAT_EXTRACT_PENDING: {
+                "task": EXTRACT_PENDING_TASK,
+                "schedule": float(settings.skill_extract_interval_seconds),
+                "kwargs": {
+                    "limit": settings.skill_extract_max_per_run,
+                    "batch_size": settings.skill_extract_batch_size,
+                },
+            },
+            # SPEC section 8, "Trends": refresh the trend views nightly.
+            BEAT_REFRESH_TRENDS: {
+                "task": REFRESH_TREND_VIEWS_TASK,
+                "schedule": crontab(
+                    hour=settings.trend_refresh_hour_utc,
+                    minute=settings.trend_refresh_minute_utc,
+                ),
+            },
         },
     )
     return app

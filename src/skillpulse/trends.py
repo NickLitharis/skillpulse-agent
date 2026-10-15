@@ -89,6 +89,18 @@ def _share(posts_with_skill: int, total_posts: int) -> tuple[float | None, bool]
     return round(posts_with_skill / total_posts, 4), True
 
 
+def months_back_cutoff(today: date, months: int) -> date:
+    """Return the first day of the oldest month in a ``months``-long window.
+
+    Computed in Python rather than with Postgres' ``make_interval`` so the same query
+    runs on the frozen SQLite fixture database and on Postgres, and so "last 12 months"
+    can be tested with an injected ``today`` instead of the wall clock.
+    """
+    index = (today.year * 12 + today.month - 1) - (months - 1)
+    year, month0 = divmod(index, 12)
+    return date(year, month0 + 1, 1)
+
+
 def _segment_filters(
     *,
     months_back: int | None,
@@ -98,6 +110,7 @@ def _segment_filters(
     remote: bool | None,
     conditions: list[str],
     params: dict[str, Any],
+    today: date,
 ) -> None:
     if month_from is not None:
         conditions.append("month >= :month_from")
@@ -106,8 +119,8 @@ def _segment_filters(
         conditions.append("month <= :month_to")
         params["month_to"] = month_to
     if months_back is not None:
-        conditions.append("month > (CURRENT_DATE - make_interval(months => :months_back))")
-        params["months_back"] = months_back
+        conditions.append("month >= :months_cutoff")
+        params["months_cutoff"] = months_back_cutoff(today, months_back)
     if role_family is not None:
         conditions.append("role_family = :role_family")
         params["role_family"] = role_family
@@ -154,6 +167,7 @@ def top_skills(
     month_to: date | None = None,
     role_family: str | None = None,
     remote: bool | None = None,
+    today: date | None = None,
 ) -> list[SkillCount]:
     """Return the most-mentioned skills for the filter, with exact counts.
 
@@ -176,6 +190,7 @@ def top_skills(
         remote=remote,
         conditions=conditions,
         params=params,
+        today=today or date.today(),
     )
     where = " AND ".join(conditions)
     numerator_sql = text(
@@ -219,6 +234,7 @@ def skill_trend(
     month_to: date | None = None,
     role_family: str | None = None,
     remote: bool | None = None,
+    today: date | None = None,
 ) -> SkillTrend:
     """Return the monthly numerator/denominator series for one skill."""
     segmented = role_family is not None or remote is not None
@@ -237,6 +253,7 @@ def skill_trend(
         remote=remote,
         conditions=conditions,
         params=params,
+        today=today or date.today(),
     )
     skill_where = " AND ".join([*conditions, "skill_id = :skill_id"])
     if segmented:

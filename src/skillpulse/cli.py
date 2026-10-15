@@ -13,7 +13,9 @@ from sqlalchemy import select
 
 from skillpulse.config import get_settings
 from skillpulse.db import session_scope
+from skillpulse.eval.agent_eval import load_agent_cases, run_agent_eval
 from skillpulse.eval.extraction_eval import load_dataset, run_baseline_eval
+from skillpulse.eval.fixture import build_fixture_engine
 from skillpulse.extraction.baseline import BaselineExtractor
 from skillpulse.extraction.repository import sync_taxonomy
 from skillpulse.extraction.service import extract_post
@@ -125,6 +127,41 @@ def cmd_eval_extraction(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval_agent(args: argparse.Namespace) -> int:
+    """Score the agent on the frozen fixture database and write a results JSON."""
+    taxonomy = load_taxonomy()
+    dataset_path = Path(args.dataset)
+    cases = load_agent_cases(dataset_path)
+    engine = build_fixture_engine()
+    try:
+        report = run_agent_eval(
+            engine,
+            taxonomy,
+            cases,
+            model_label=args.model,
+            dataset=dataset_path.name,
+            source=args.source,
+        )
+    finally:
+        engine.dispose()
+    payload = {
+        "model": report.model,
+        "dataset": report.dataset,
+        "source": report.source,
+        "gate": args.gate,
+        "report": report.to_json(),
+    }
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"agent fixture [{report.model}]: correctness={report.correctness} "
+        f"grounding={report.grounding_rate} tool-selection={report.tool_selection_accuracy} "
+        f"({report.correct}/{report.cases}) -> {out_path}"
+    )
+    return 0
+
+
 def cmd_refresh_trends(args: argparse.Namespace) -> int:
     """Refresh the trend materialised views."""
     factory = build_session_factory()
@@ -173,6 +210,22 @@ def build_parser() -> argparse.ArgumentParser:
         default="real HN post text and a real LLM provider are gated (docs/terms.md, D006)",
     )
     eval_extraction.set_defaults(func=cmd_eval_extraction)
+
+    eval_agent = eval_sub.add_parser("agent", help="score the agent on the fixture database")
+    eval_agent.add_argument(
+        "--dataset", default=str(REPO_ROOT / "eval" / "datasets" / "agent_cases.json")
+    )
+    eval_agent.add_argument(
+        "--out", default=str(REPO_ROOT / "eval" / "results" / "agent_fixture_fake.json")
+    )
+    eval_agent.add_argument("--model", default="fake")
+    eval_agent.add_argument("--source", default="fixture")
+    eval_agent.add_argument(
+        "--gate",
+        default="fixture DB + fake model only; a real agent model needs "
+        "SKILLPULSE_AGENT_LLM_ENABLED and a shared Redis budget (not supplied)",
+    )
+    eval_agent.set_defaults(func=cmd_eval_agent)
 
     refresh_p = sub.add_parser("refresh-trends", help="refresh the trend materialised views")
     refresh_p.add_argument("--no-concurrent", action="store_true")

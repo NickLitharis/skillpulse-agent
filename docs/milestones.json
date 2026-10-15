@@ -49,29 +49,39 @@
         "Trends: exact numerator/denominator per month and segment; total_posts is eligible posts for the requested extractor/taxonomy (not full-source coverage, which /v1/coverage reports); shares withheld below 30 posts.",
         "Stats API on FastAPI: /healthz, /readyz, /v1/skills/top, /v1/skills/{id}/trend, /v1/coverage.",
         "Labelled synthetic set of 40 posts (eval/datasets/synthetic_extraction.json); baseline micro-F1 0.9910 / macro-F1 0.9783 recorded in eval/results/baseline_synthetic.json (synthetic, not real data).",
-        "Integration tests run the real Postgres 16 migration, the CONCURRENTLY refresh and the real endpoints."
+        "Integration tests run the real Postgres 16 migration, the CONCURRENTLY refresh and the real endpoints.",
+        "worker-skills is wired: skillpulse workers/skills run bounded, idempotent extraction batches via the default-closed provider factory and the shared Redis budget, and a nightly beat task refreshes the trend views in AUTOCOMMIT."
       ],
       "remaining_gates": [
         "Real-LLM F1 (S2 >= 0.85) and the real-HN labelled set (~150 posts) are BLOCKED: the LLM gate is off and no provider credential/base URL is configured, and labelling real HN post text needs the M1 authorization gate.",
-        "The baseline-vs-LLM table cannot be completed until both real runs exist; the synthetic baseline F1 is not a real-data S2 result.",
-        "The Celery worker-skills task and nightly view refresh schedule are not wired yet."
+        "The baseline-vs-LLM table cannot be completed until both real runs exist; the synthetic baseline F1 is not a real-data S2 result."
       ],
       "spec_acceptance": "Extraction set labelled: synthetic set done, real-HN set NOT done. Baseline vs LLM F1 recorded (S2): baseline on synthetic recorded, real LLM F1 NOT recorded."
     },
     {
       "id": "M4",
       "title": "Tools module, LangGraph agent, grounding check, /v1/ask, fixture DB, agent eval",
-      "status": "not_started",
-      "evidence": ["The read-only trend/stats layer M4 builds on now exists (skillpulse.trends + /v1/skills endpoints)."],
-      "remaining_gates": ["Build tools, agent graph, grounding check, fixture DB and agent eval.", "Depends on M3 completion for an extraction source to query."],
-      "spec_acceptance": "Not started."
+      "status": "partial",
+      "evidence": [
+        "skillpulse.tools: the five read-only tools (search_jobs, skill_counts, skill_trend, compare_skills, match_cv) with typed bounded Pydantic arguments, fixed parameterized SQL (no model-written SQL and no raw-SQL escape hatch), content-addressed result_id values, eligible-post denominator semantics, 3-state remote and the <30-post share suppression.",
+        "Read-only tool sessions set READ ONLY/PRAGMA query_only plus a statement timeout and row cap; migration 0003 adds the NOLOGIN skillpulse_readonly Postgres role with SELECT only (no embedded credential).",
+        "LangGraph agent (plan -> tools -> draft -> grounding check) with max 6 tool calls, one rewrite and a wall-clock deadline; a configurable OpenAI-compatible model path reuses the M3 client and the shared Redis budget and is off by default.",
+        "Grounding fails closed on fabricated citations and only typed share/rate fields prove a percent; structured claims are validated against the exact field path and rendered from it.",
+        "POST /v1/ask streams SSE plan/tool_call/tool_result/token/done(trace_id,partial,grounded)/error, cancels on disconnect, returns 503 for Postgres down and never returns internal errors or credentials.",
+        "Deterministic SQLite fixture DB (no post text) and eval/datasets/agent_cases.json (9 cases: grounded statistics, ambiguity, impossible Greek, injection, invented numbers, tool failure, cancellation); fake-model fixture result 9/9 correct, grounding 1.0, tool selection 1.0 recorded in eval/results/agent_fixture_fake.json."
+      ],
+      "remaining_gates": [
+        "Real-model S3 (answer correctness >= 0.85) and S4 (grounding >= 0.98) need SKILLPULSE_AGENT_LLM_ENABLED with an OpenAI-compatible base URL/model and a shared Redis budget; none supplied, so only the fake-model fixture run exists and it is not a real-model number.",
+        "Hosted /v1/ask and the MCP client checks (S8) need the M5/M6 deployment."
+      ],
+      "spec_acceptance": "Baseline recorded: fixture fake-model baseline recorded (correctness 1.0, grounding 1.0 over 9 cases). S3 and S4 measured with a real model: NOT met (no credential/budget supplied)."
     },
     {
       "id": "M5",
       "title": "MCP server (stdio + HTTP)",
       "status": "not_started",
-      "evidence": ["No MCP code yet; the five tools it will share live in M4."],
-      "remaining_gates": ["Implement the shared tools module (M4), then the stdio and HTTP MCP transports."],
+      "evidence": ["The five shared tools now exist and are importable from skillpulse.tools with typed schemas and content-addressed result ids; the MCP server can wrap them without reimplementing SQL."],
+      "remaining_gates": ["Implement the stdio and streamable HTTP MCP transports over the existing tool module, plus the skillpulse://taxonomy resource."],
       "spec_acceptance": "Not started."
     },
     {

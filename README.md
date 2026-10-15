@@ -9,6 +9,32 @@ Full design: [SPEC.md](SPEC.md). Architecture decisions: [docs/decisions.md](doc
 
 ## Status
 
+Milestone **M4 — tools, LangGraph agent, `/v1/ask`, fixture DB and agent eval** (partial):
+
+- `skillpulse.tools` holds the five read-only tools (`search_jobs`, `skill_counts`,
+  `skill_trend`, `compare_skills`, `match_cv`) with typed bounded arguments and fixed
+  parameterized SQL — the model never writes SQL, and a tool result carries a
+  content-addressed `result_id`, the extractor/taxonomy provenance, the eligible-post
+  denominator and the coverage caveat,
+- every tool query runs in a read-only session (`READ ONLY` on Postgres, `query_only` on
+  SQLite) with a statement timeout and a row cap; migration `0003` adds a `NOLOGIN`
+  `skillpulse_readonly` role with `SELECT` only and no embedded credential,
+- a native **LangGraph** agent runs plan → tools → draft → grounding with finite bounds
+  (6 tool calls, one rewrite, a deadline, disconnect cancellation); the real model path
+  reuses the M3 OpenAI-compatible client and the shared Redis budget and is **off by
+  default**,
+- the **grounding check** fails closed on a fabricated citation and only lets a typed
+  `share`/`rate` field prove a percentage; invented numbers are logged and blocked,
+- `POST /v1/ask` streams SSE (`plan`, `tool_call`, `tool_result`, `token`, `done` with
+  `trace_id`/`partial`/`grounded`, `error`), returns `503` when Postgres is down and
+  cancels on disconnect,
+- a deterministic **fixture database** (no post text) and 9 agent cases run in CI; the
+  fake-model result is `eval/results/agent_fixture_fake.json`.
+
+**M4 is partial, not complete.** The real-model S3/S4 numbers need
+`SKILLPULSE_AGENT_LLM_ENABLED` plus an OpenAI-compatible credential and shared budget,
+which were not supplied; see [docs/m4-acceptance.md](docs/m4-acceptance.md).
+
 Milestone **M3 — taxonomy, extraction and trends** (partial). What exists now:
 
 - `config/skills.yaml` holds 336 skills in 13 categories plus 10 role families; the
@@ -54,9 +80,9 @@ Milestone **M1 — ingestion skeleton** remains the fetching slice: find every
 "Who is hiring?" thread, fetch its top-level comments at <= 10 requests/second, clean the
 HTML, strip recruiter e-mails and phone numbers, and upsert on the HN item id.
 
-Not built yet: the LLM-backed extraction worker task and its nightly refresh schedule,
-the LangGraph agent (`/v1/ask`), the MCP server, Helm/Terraform, and k8s deployment. The
-full historical back-fill is blocked on the authorization gate below.
+Not built yet: the MCP server (`stdio` + HTTP), Helm/Terraform, and the Kubernetes
+deployment. The full historical back-fill remains blocked on the authorization gate below,
+and a real-model agent/extraction acceptance run needs a provider credential and budget.
 
 ## Quick start
 
@@ -105,14 +131,18 @@ src/skillpulse/
   fetch_service.py    find threads, fetch a thread, back-fill
   extraction/         taxonomy loader, baseline + LLM extractors, persistence, service
   trends.py           trend statistics over the materialised views
-  api/app.py          FastAPI stats endpoints (/v1/skills, /v1/coverage)
-  eval/               labelled-set extraction scoring
+  tools/              the five read-only tools (shared by the agent and, in M5, MCP)
+  agent/              LangGraph graph, planner/drafter models, grounding check
+  api/app.py          FastAPI stats endpoints (/v1/skills, /v1/coverage) and /v1/ask SSE
+  eval/               labelled-set extraction scoring, fixture DB and agent evaluation
   runtime.py          shared client/session wiring for the CLI and the workers
   workers/
     app.py            Celery app: Redis broker/backend, beat schedule
-    tasks.py          fetch_thread, discover_threads, refresh_recent_threads
-  cli.py              skillpulse threads | fetch | backfill
-alembic/              migrations (0001 initial ingestion tables)
+    tasks.py          fetch_thread, discover_threads, refresh_recent_threads,
+                      extract_pending, refresh_trend_views
+    skills.py         bounded, idempotent extraction batches (worker-skills)
+  cli.py              skillpulse threads | fetch | backfill | extract | eval | refresh-trends
+alembic/              migrations (0001 ingestion, 0002 extraction/trends, 0003 read-only role)
 tests/                unit tests + Postgres/Redis testcontainers integration tests
 ```
 
@@ -124,9 +154,14 @@ make test-integration  # real Postgres 16 and Redis 7 via testcontainers (needs 
 
 uv run skillpulse taxonomy            # print the loaded taxonomy
 uv run skillpulse eval extraction     # synthetic baseline F1 -> eval/results/
+uv run skillpulse eval agent          # fixture DB + fake model -> eval/results/
 uv run skillpulse refresh-trends      # refresh the trend materialised views
 uv run uvicorn skillpulse.api.app:app # stats API on localhost:8000
 ```
+
+`POST /v1/ask` needs a configured agent model; without `SKILLPULSE_AGENT_LLM_ENABLED` it
+returns `503` rather than inventing an answer. The tools connect with a read-only role
+(migration `0003`); the operator provisions its login and password outside the repository.
 
 ## Data source, terms and attribution
 

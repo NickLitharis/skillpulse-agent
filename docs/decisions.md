@@ -148,3 +148,32 @@ credential, so the LLM is exercised only through contract tests with a fake clie
 blocked until M1 authorization and a provider credential exist. The synthetic baseline
 F1 in `eval/results/baseline_synthetic.json` is explicitly synthetic and is not a
 real-data S2 result.
+
+## D008 — M4: read-only tools, a bounded LangGraph agent, fail-closed grounding (2026-10-15)
+
+**Decision.** The five tools live once in `skillpulse.tools` and are shared by the agent
+(and M5). Every tool takes a typed bounded Pydantic argument model, runs in a read-only
+session, and uses fixed parameterized SQL; there is no raw-SQL parameter. Each result
+carries a content-addressed `result_id`, the extractor and taxonomy version, the
+eligible-post denominator definition and the coverage caveat. Migration 0003 creates a
+`NOLOGIN` `skillpulse_readonly` role with SELECT only and no embedded credential.
+
+**Agent.** A native `langgraph` `StateGraph` runs plan → tools → draft → grounding, with
+explicit bounds: 6 tool calls, one grounding rewrite, a 60 s deadline and a cancellation
+callback checked at every node. The model path reuses the M3 OpenAI-compatible client
+and the shared `RedisDailyBudget`, and is off by default (`SKILLPULSE_AGENT_LLM_ENABLED`).
+
+**Grounding.** A citation that names no real `result_id` fails closed. Only fields named
+`share`/`rate`/`ratio` may prove a percent, so a count of `1` can never prove `100%`.
+Structured claims (`result_id` + field path + value + unit) are validated against the
+exact field and rendered from it; unsupported numbers are logged and blocked, then the
+answer falls back to verified claims or raw tool rows.
+
+**Why.** SPEC sections 9-11 and S4. A number may only come from a query, and a reviewer
+must be able to trace it to an immutable tool output. Falling back to "the number appears
+somewhere in the results" would let a fabricated citation or an unrelated count pass;
+failing closed is the only honest option.
+
+**Consequence.** M4 is partial: the fake-model fixture baseline is recorded, but the
+real-model S3/S4 numbers need an explicit credential and shared budget and remain
+blocked, so `eval/results/agent_fixture_fake.json` is never quoted as a real result.

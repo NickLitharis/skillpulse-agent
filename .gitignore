@@ -34,6 +34,9 @@ eval/results/*
 !eval/results/.gitkeep
 # The latest committed summary is the only result that ships (SPEC section 15).
 !eval/results/baseline_synthetic.json
+# The M4 agent fixture (fake-model) summary ships alongside the baseline; real-model
+# results would need a provider credential and are not produced here.
+!eval/results/agent_fixture_fake.json
 
 # OS / editor
 .DS_Store
