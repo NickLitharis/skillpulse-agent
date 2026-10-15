@@ -93,6 +93,28 @@ _INJECTION_MARKERS = (
 )
 _AMBIGUOUS_MARKERS = ("hot", "trending", "popular", "best skills", "what skills matter")
 _INFEASIBLE_MARKERS = ("greek", "greece", "2010", "1999")
+# Questions that ask for post rows rather than an aggregate use ``search_jobs``; a named
+# country also routes there because ``search_jobs`` is the tool that carries a region
+# filter (SPEC section 9). These are deterministic planner rules for the fixture, not
+# language understanding.
+_SEARCH_MARKERS = (
+    "list",
+    "show",
+    "find posts",
+    "search posts",
+    "search jobs",
+    "which companies",
+    "companies hiring",
+)
+_COUNTRY_ALIASES = {
+    "united states": "United States",
+    "germany": "Germany",
+    "netherlands": "Netherlands",
+    "united kingdom": "United Kingdom",
+    "canada": "Canada",
+    "greece": "Greece",
+}
+_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 _ROLE_HINTS = (
     "backend",
     "frontend",
@@ -156,6 +178,28 @@ def _first_skill(question: str, taxonomy: Taxonomy) -> str | None:
     return None
 
 
+def _country(question: str) -> str | None:
+    lowered = question.lower()
+    for alias, canonical in _COUNTRY_ALIASES.items():
+        if alias in lowered:
+            return canonical
+    return None
+
+
+def _year_window(question: str) -> tuple[str | None, str | None]:
+    """Return an explicit calendar-year window from an ``in 2021``-style question.
+
+    The frozen fixture has no notion of "today", so a relative "last N months" window
+    would drift as the wall clock moves. Canonical evaluation questions name a year, and
+    the planner turns that into fixed ``month_from``/``month_to`` bounds.
+    """
+    match = _YEAR_RE.search(question)
+    if match is None:
+        return None, None
+    year = match.group(1)
+    return f"{year}-01-01", f"{year}-12-01"
+
+
 class FakeAgentModel:
     """Deterministic planner/drafter for CI. Not a real LLM and never quoted as one."""
 
@@ -177,13 +221,46 @@ class FakeAgentModel:
         role_family = _role_family(question, taxonomy)
         remote = _remote(question)
         skill = _first_skill(question, taxonomy)
+        month_from, month_to = _year_window(question)
+        window: dict[str, Any] = (
+            {"month_from": month_from, "month_to": month_to} if month_from else {}
+        )
         if "cv" in lowered or "resume" in lowered:
-            return PlanResult(calls=[ToolCall("match_cv", {"cv_text": question, "top_n": 5})])
+            cv_args: dict[str, Any] = {"cv_text": question, "top_n": 5, **window}
+            if role_family:
+                cv_args["role_family"] = role_family
+            if remote is not None:
+                cv_args["remote"] = remote
+            return PlanResult(calls=[ToolCall("match_cv", cv_args)])
         if "compare" in lowered and skill is not None:
             others = [other.id for other in taxonomy.skills if other.id != skill][:1]
-            return PlanResult(calls=[ToolCall("compare_skills", {"skill_ids": [skill, *others]})])
+            compare_args: dict[str, Any] = {"skill_ids": [skill, *others], **window}
+            if role_family:
+                compare_args["role_family"] = role_family
+            if remote is not None:
+                compare_args["remote"] = remote
+            return PlanResult(calls=[ToolCall("compare_skills", compare_args)])
         if ("trend" in lowered or "growth" in lowered or "changed" in lowered) and skill:
-            return PlanResult(calls=[ToolCall("skill_trend", {"skill_id": skill, "months": 24})])
+            trend_args: dict[str, Any] = {"skill_id": skill, **window}
+            if role_family:
+                trend_args["role_family"] = role_family
+            if remote is not None:
+                trend_args["remote"] = remote
+            if not window:
+                trend_args["months"] = 24
+            return PlanResult(calls=[ToolCall("skill_trend", trend_args)])
+        country = _country(question)
+        if country is not None or any(marker in lowered for marker in _SEARCH_MARKERS):
+            search_args: dict[str, Any] = {"limit": 20, **window}
+            if role_family:
+                search_args["role_family"] = role_family
+            if remote is not None:
+                search_args["remote"] = remote
+            if country is not None:
+                search_args["country"] = country
+            if skill is not None:
+                search_args["skill_id"] = skill
+            return PlanResult(calls=[ToolCall("search_jobs", search_args)])
         if not role_family and not remote and skill is None and any(
             marker in lowered for marker in _AMBIGUOUS_MARKERS
         ):
@@ -195,7 +272,7 @@ class FakeAgentModel:
             and not any(marker in lowered for marker in _JOB_MARKERS)
         ):
             return PlanResult(refuse=True)
-        args: dict[str, Any] = {"top_n": 5}
+        args: dict[str, Any] = {"top_n": 5, **window}
         if role_family:
             args["role_family"] = role_family
         if remote is not None:
@@ -274,7 +351,7 @@ class FakeAgentModel:
                       float(top["total_posts"]), "count")
             )
             answer = (
-                f"Compared {len(rows)} skills; lead: {top['skill_id']} with "
+                f"Comparison of the requested skills; lead: {top['skill_id']} with "
                 f"{top['posts_with_skill']} of {top['total_posts']} eligible posts."
             )
         else:

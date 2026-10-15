@@ -37,6 +37,9 @@ eval/results/*
 # The M4 agent fixture (fake-model) summary ships alongside the baseline; real-model
 # results would need a provider credential and are not produced here.
 !eval/results/agent_fixture_fake.json
+# The canonical five-year-fixture fake-model contract run (model=fake, synthetic only,
+# not_real_acceptance); real-model S3/S4 results are never committed from CI.
+!eval/results/agent_fixture_synthetic.json
 
 # OS / editor
 .DS_Store

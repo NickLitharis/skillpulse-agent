@@ -1,14 +1,23 @@
-"""Agent evaluation on the frozen fixture database (SPEC section 11).
+"""Agent evaluation on the frozen fixture databases (SPEC section 11).
 
 This runner proves the pipeline is honest, not that a real model is accurate. Every case
 here runs :class:`~skillpulse.agent.models.FakeAgentModel` unless it names an adversarial
-model, and the result records ``model="fake"`` so a fixture run can never be quoted as the
-S3/S4 real-model acceptance number.
+model, and the result records ``model="fake"`` (and the dataset ``source``) so a fixture
+run can never be quoted as the S3/S4 real-model acceptance number.
+
+Two datasets are supported:
+
+* the tiny smoke set in ``eval/datasets/agent_cases.json`` (behaviour only, no facts),
+* the canonical set in ``eval/datasets/agent_eval_cases.json`` built by
+  :mod:`skillpulse.eval.agent_dataset`, whose ``expected_facts`` were computed by
+  independent SQL and are checked against the tool results here.
 """
 
 from __future__ import annotations
 
 import json
+import math
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -51,7 +60,9 @@ class AgentCase:
 
     id: str
     question: str
+    category: str = ""
     expected_tools: tuple[str, ...] = ()
+    expected_facts: tuple[dict[str, Any], ...] = ()
     must_refuse: bool = False
     must_ask_back: bool = False
     must_state_insufficient: bool = False
@@ -66,6 +77,7 @@ class AgentCaseResult:
 
     id: str
     question: str
+    category: str
     correct: bool
     grounded: bool
     used_tools: list[str] = field(default_factory=list)
@@ -74,6 +86,11 @@ class AgentCaseResult:
     error: str | None = None
     partial: bool = False
     unsupported: list[str] = field(default_factory=list)
+    facts_checked: int = 0
+    facts_passed: int = 0
+    fact_failures: list[str] = field(default_factory=list)
+    steps: int = 0
+    latency_ms: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -89,11 +106,23 @@ class AgentEvalReport:
     grounding_rate: float
     tool_selection_accuracy: float
     results: list[AgentCaseResult]
+    fixture: dict[str, Any] = field(default_factory=dict)
+    usage: dict[str, Any] = field(default_factory=dict)
+    facts_checked: int = 0
+    facts_passed: int = 0
+    mean_steps: float = 0.0
+    p95_latency_ms: float = 0.0
 
     def to_json(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["results"] = [asdict(result) for result in self.results]
         return payload
+
+
+def _as_dicts(raw: object) -> tuple[dict[str, Any], ...]:
+    if not isinstance(raw, list):
+        return ()
+    return tuple(entry for entry in raw if isinstance(entry, dict))
 
 
 def load_agent_cases(path: Path) -> list[AgentCase]:
@@ -105,7 +134,9 @@ def load_agent_cases(path: Path) -> list[AgentCase]:
             AgentCase(
                 id=str(entry["id"]),
                 question=str(entry["question"]),
+                category=str(entry.get("category", "")),
                 expected_tools=tuple(entry.get("expected_tools") or ()),
+                expected_facts=_as_dicts(entry.get("expected_facts")),
                 must_refuse=bool(entry.get("must_refuse", False)),
                 must_ask_back=bool(entry.get("must_ask_back", False)),
                 must_state_insufficient=bool(entry.get("must_state_insufficient", False)),
@@ -115,6 +146,13 @@ def load_agent_cases(path: Path) -> list[AgentCase]:
             )
         )
     return cases
+
+
+def load_agent_dataset(path: Path) -> tuple[list[AgentCase], dict[str, Any]]:
+    """Load cases plus the frozen-fixture metadata a canonical dataset carries."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    fixture = raw.get("fixture")
+    return load_agent_cases(path), fixture if isinstance(fixture, dict) else {}
 
 
 def _used_tools(run: AgentRun) -> list[str]:
@@ -131,8 +169,79 @@ def _case_model(case: AgentCase) -> AgentModel:
     return FakeAgentModel()
 
 
+def _resolve_path(result: ToolResult, path: str) -> Any:
+    node: Any = result.model_dump(mode="json")
+    for part in path.split("."):
+        if isinstance(node, dict):
+            if part not in node:
+                return None
+            node = node[part]
+        elif isinstance(node, list):
+            try:
+                node = node[int(part)]
+            except (IndexError, ValueError):
+                return None
+        else:
+            return None
+    return node
+
+
+def _check_fact(result: ToolResult, fact: dict[str, Any]) -> bool:
+    """Check one expected fact against the exact field of the named tool result."""
+    kind = fact.get("kind")
+    if kind == "field":
+        value = _resolve_path(result, str(fact.get("path", "")))
+        expected = fact.get("value")
+        if expected is None or value is None:
+            return value is None and expected is None
+        if isinstance(expected, bool) or isinstance(value, bool):
+            return bool(value) is bool(expected)
+        if isinstance(expected, int | float) and isinstance(value, int | float):
+            tolerance = max(float(fact.get("tolerance", 0.0)), 1e-9)
+            return abs(float(value) - float(expected)) <= tolerance
+        return bool(value == expected)
+    if kind == "all_rows":
+        field_name = str(fact.get("field", ""))
+        return bool(result.rows) and all(
+            row.get(field_name) == fact.get("equals") for row in result.rows
+        )
+    if kind == "min_rows":
+        return result.row_count >= int(fact.get("value", 0))
+    if kind == "nonempty":
+        return bool(_resolve_path(result, str(fact.get("path", ""))))
+    return False
+
+
+def check_expected_facts(run: AgentRun, case: AgentCase) -> tuple[bool, list[str]]:
+    """Return ``(all_passed, failures)`` for the case's expected facts.
+
+    Each fact names the tool whose result must carry it; a fact with no matching tool
+    result fails, so a case cannot pass by skipping the tool it is meant to exercise.
+    """
+    failures: list[str] = []
+    results_by_tool = {result.tool: result for result in run.results}
+    for fact in case.expected_facts:
+        tool = str(fact.get("tool", ""))
+        result = results_by_tool.get(tool)
+        if result is None:
+            failures.append(f"{case.id}: no {tool} result")
+            continue
+        if not _check_fact(result, fact):
+            failures.append(f"{case.id}: {tool}:{fact.get('path') or fact.get('kind')}")
+    return not failures, failures
+
+
+def _insufficient_answer(answer: str) -> bool:
+    lowered = answer.lower()
+    return (
+        "cannot" in lowered
+        or "too small" in lowered
+        or "below 30" in lowered
+        or "sample is below" in lowered
+    )
+
+
 def _is_correct(case: AgentCase, run: AgentRun) -> bool:
-    answer = run.answer.lower()
     if case.simulate == "cancel":
         return run.error == "cancelled"
     if case.simulate == "tool_failure":
@@ -142,7 +251,7 @@ def _is_correct(case: AgentCase, run: AgentRun) -> bool:
     if case.must_ask_back:
         return run.ask_back
     if case.must_state_insufficient:
-        return "cannot" in answer or "sample is too small" in answer
+        return _insufficient_answer(run.answer)
     if any(number in run.answer for number in case.forbidden_numbers):
         return False
     if case.adversarial_model == "invents":
@@ -151,7 +260,37 @@ def _is_correct(case: AgentCase, run: AgentRun) -> bool:
         )
     if not run.grounded:
         return False
-    return set(case.expected_tools) <= set(_used_tools(run))
+    if not set(case.expected_tools) <= set(_used_tools(run)):
+        return False
+    if case.expected_facts:
+        passed, _ = check_expected_facts(run, case)
+        if not passed:
+            return False
+    return True
+
+
+def _usage_for(model_label: str) -> dict[str, Any]:
+    """Provider usage when it exists, otherwise null with a reason (never invented)."""
+    if model_label == "fake":
+        reason = "deterministic fake model; no provider usage is produced"
+    else:
+        reason = "this runner does not capture provider usage; record it from the provider"
+    return {
+        "provider": model_label,
+        "input_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "cost_usd": None,
+        "reason": reason,
+    }
+
+
+def _p95(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = max(0, math.ceil(0.95 * len(ordered)) - 1)
+    return round(ordered[index], 3)
 
 
 def run_agent_eval(
@@ -162,11 +301,15 @@ def run_agent_eval(
     model_label: str,
     dataset: str,
     source: str = "fixture",
+    fixture: dict[str, Any] | None = None,
 ) -> AgentEvalReport:
     """Run every case against the fixture database and score the outcomes."""
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     results: list[AgentCaseResult] = []
     correct = 0
+    facts_checked = 0
+    facts_passed = 0
+    latencies: list[float] = []
     for case in cases:
         runtime: ToolRuntime = (
             FailingToolRuntime(factory, taxonomy)
@@ -174,6 +317,7 @@ def run_agent_eval(
             else ToolRuntime(factory, taxonomy)
         )
         cancel_check = (lambda: True) if case.simulate == "cancel" else None
+        started = time.perf_counter()
         run = run_agent(
             case.question,
             runtime=runtime,
@@ -181,12 +325,20 @@ def run_agent_eval(
             taxonomy=taxonomy,
             cancel_check=cancel_check,
         )
+        latency_ms = round((time.perf_counter() - started) * 1000, 3)
+        latencies.append(latency_ms)
+        _, failures = (
+            check_expected_facts(run, case) if case.expected_facts else (True, [])
+        )
+        facts_checked += len(case.expected_facts)
+        facts_passed += len(case.expected_facts) - len(failures)
         correct_case = _is_correct(case, run)
         correct += int(correct_case)
         results.append(
             AgentCaseResult(
                 id=case.id,
                 question=case.question,
+                category=case.category,
                 correct=correct_case,
                 grounded=run.grounded,
                 used_tools=_used_tools(run),
@@ -195,6 +347,11 @@ def run_agent_eval(
                 error=run.error,
                 partial=run.partial,
                 unsupported=run.unsupported,
+                facts_checked=len(case.expected_facts),
+                facts_passed=len(case.expected_facts) - len(failures),
+                fact_failures=failures,
+                steps=run.tool_calls_used,
+                latency_ms=latency_ms,
             )
         )
     tool_cases = [case for case in cases if case.expected_tools]
@@ -221,4 +378,10 @@ def run_agent_eval(
         else 0.0,
         tool_selection_accuracy=round(tool_hits / len(tool_cases), 4) if tool_cases else 0.0,
         results=results,
+        fixture=fixture or {},
+        usage=_usage_for(model_label),
+        facts_checked=facts_checked,
+        facts_passed=facts_passed,
+        mean_steps=round(sum(result.steps for result in results) / total, 3) if total else 0.0,
+        p95_latency_ms=_p95(latencies),
     )

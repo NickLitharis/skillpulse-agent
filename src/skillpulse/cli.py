@@ -13,9 +13,16 @@ from sqlalchemy import select
 
 from skillpulse.config import get_settings
 from skillpulse.db import session_scope
-from skillpulse.eval.agent_eval import load_agent_cases, run_agent_eval
+from skillpulse.eval.agent_dataset import (
+    DATASET_PATH as AGENT_EVAL_DATASET,
+)
+from skillpulse.eval.agent_dataset import (
+    write_agent_dataset,
+)
+from skillpulse.eval.agent_eval import load_agent_dataset, run_agent_eval
 from skillpulse.eval.extraction_eval import load_dataset, run_baseline_eval
 from skillpulse.eval.fixture import build_fixture_engine
+from skillpulse.eval.synthetic_fixture import build_synthetic_fixture_engine
 from skillpulse.extraction.baseline import BaselineExtractor
 from skillpulse.extraction.repository import sync_taxonomy
 from skillpulse.extraction.service import extract_post
@@ -128,11 +135,14 @@ def cmd_eval_extraction(args: argparse.Namespace) -> int:
 
 
 def cmd_eval_agent(args: argparse.Namespace) -> int:
-    """Score the agent on the frozen fixture database and write a results JSON."""
+    """Score the agent on a frozen fixture database and write a results JSON."""
     taxonomy = load_taxonomy()
     dataset_path = Path(args.dataset)
-    cases = load_agent_cases(dataset_path)
-    engine = build_fixture_engine()
+    cases, fixture = load_agent_dataset(dataset_path)
+    if args.fixture_profile == "synthetic":
+        engine = build_synthetic_fixture_engine()
+    else:
+        engine = build_fixture_engine()
     try:
         report = run_agent_eval(
             engine,
@@ -141,13 +151,28 @@ def cmd_eval_agent(args: argparse.Namespace) -> int:
             model_label=args.model,
             dataset=dataset_path.name,
             source=args.source,
+            fixture=fixture,
         )
     finally:
         engine.dispose()
+    acceptance = "not_real_acceptance" if args.model == "fake" else "unverified"
     payload = {
         "model": report.model,
         "dataset": report.dataset,
         "source": report.source,
+        "acceptance": acceptance,
+        "fixture_profile": args.fixture_profile,
+        "fixture": report.fixture,
+        "usage": report.usage,
+        "gates": {
+            "answer_correctness": report.correctness,
+            "grounding_rate": report.grounding_rate,
+            "tool_selection_accuracy": report.tool_selection_accuracy,
+            "facts_passed": report.facts_passed,
+            "facts_checked": report.facts_checked,
+            "mean_steps": report.mean_steps,
+            "p95_latency_ms": report.p95_latency_ms,
+        },
         "gate": args.gate,
         "report": report.to_json(),
     }
@@ -155,10 +180,23 @@ def cmd_eval_agent(args: argparse.Namespace) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
-        f"agent fixture [{report.model}]: correctness={report.correctness} "
+        f"agent fixture [{report.model}/{report.source}]: correctness={report.correctness} "
         f"grounding={report.grounding_rate} tool-selection={report.tool_selection_accuracy} "
-        f"({report.correct}/{report.cases}) -> {out_path}"
+        f"facts={report.facts_passed}/{report.facts_checked} ({report.correct}/{report.cases}) "
+        f"-> {out_path}"
     )
+    return 0
+
+
+def cmd_build_agent_cases(args: argparse.Namespace) -> int:
+    """Regenerate the canonical agent dataset from the synthetic fixture."""
+    taxonomy = load_taxonomy()
+    engine = build_synthetic_fixture_engine()
+    try:
+        out = write_agent_dataset(engine, taxonomy, Path(args.out) if args.out else None)
+    finally:
+        engine.dispose()
+    print(f"wrote canonical agent cases -> {out}")
     return 0
 
 
@@ -221,11 +259,20 @@ def build_parser() -> argparse.ArgumentParser:
     eval_agent.add_argument("--model", default="fake")
     eval_agent.add_argument("--source", default="fixture")
     eval_agent.add_argument(
+        "--fixture-profile", choices=["tiny", "synthetic"], default="tiny"
+    )
+    eval_agent.add_argument(
         "--gate",
         default="fixture DB + fake model only; a real agent model needs "
         "SKILLPULSE_AGENT_LLM_ENABLED and a shared Redis budget (not supplied)",
     )
     eval_agent.set_defaults(func=cmd_eval_agent)
+
+    build_cases = eval_sub.add_parser(
+        "build-agent-cases", help="regenerate the canonical agent dataset JSON"
+    )
+    build_cases.add_argument("--out", default=str(AGENT_EVAL_DATASET))
+    build_cases.set_defaults(func=cmd_build_agent_cases)
 
     refresh_p = sub.add_parser("refresh-trends", help="refresh the trend materialised views")
     refresh_p.add_argument("--no-concurrent", action="store_true")

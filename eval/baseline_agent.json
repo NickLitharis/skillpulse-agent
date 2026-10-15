@@ -1,0 +1,22 @@
+{
+  "dataset": "agent_eval_cases.json",
+  "model": "fake",
+  "source": "synthetic_fixture",
+  "acceptance": "not_real_acceptance",
+  "fixture": {
+    "version": "synth-2019-2023-v1",
+    "row_hash": "c6c6edb67ea5bc4eb6a966aa606c56681bc12d98ba043ed707f515dfa9b56847",
+    "taxonomy_version": "2026-10-15"
+  },
+  "gate_tolerance_questions": 2,
+  "metrics": {
+    "cases": 64,
+    "correct": 64,
+    "answer_results": 62,
+    "grounded": 62,
+    "facts_checked": 222,
+    "facts_passed": 222,
+    "tool_selection_accuracy": 1.0
+  },
+  "note": "Frozen fake-model contract baseline on the five-year synthetic fixture (SPEC section 13 tolerance: at most 2 questions may drop). It is NOT a real-model S3/S4 result and must never be quoted as one."
+}
