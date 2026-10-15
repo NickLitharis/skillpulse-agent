@@ -87,7 +87,7 @@
         "Real protocol tests: tests/test_m5_mcp_protocol.py drives the real SDK client over stdio and an HTTP subprocess, with negative controls (unknown tool, bad args, oversized cv_text, unknown skill), a DB-failure safety check, schema/model parity, a raw-write denial proving read-only, and process-tree teardown on Windows.",
         "Real MCP Inspector CLI roundtrip (@modelcontextprotocol/inspector@2.11.0, Node v24.11.1, npx 11.6.2): tools/list over stdio and HTTP and tools/call skill_counts top_n=2 over stdio, tests/test_m5_inspector.py (env-gated SKILLPULSE_RUN_INSPECTOR=1), evidence in docs/evidence/.",
         "Fixed a latent M4 bug found by M5: search_jobs with no filters built invalid SQL ('... AND  ORDER BY'); regression test tests/test_m4_tools_agent.py::test_search_jobs_without_filters_returns_rows added.",
-        "Suite: 154 passed, 3 skipped (env-gated Inspector) in 58 s; ruff clean; strict mypy clean (43 files); negative control (SQLite query_only guard removed) failed as required, then restored green."
+        "Suite: 154 passed, 3 skipped (env-gated Inspector) in 62 s; ruff clean; strict mypy clean (43 files); negative control (SQLite query_only guard removed) failed as required, then restored green."
       ],
       "remaining_gates": [
         "Claude Desktop end-to-end (S8 'works in Claude Desktop'): BLOCKED - needs the GUI and a global client-config edit; not validated this round. Ready example config + manual check are in docs/m5-acceptance.md and docs/claude-desktop-mcp.example.json.",
