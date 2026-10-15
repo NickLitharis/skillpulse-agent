@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage*
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Local datasets, databases and scratch files
+.tmp/
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Terraform (later milestones)
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+
+# Eval outputs (later milestones)
+eval/results/*
+!eval/results/.gitkeep
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
