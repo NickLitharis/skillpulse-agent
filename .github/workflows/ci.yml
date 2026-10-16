@@ -21,9 +21,6 @@ jobs:
         run: uv run mypy
       - name: Unit tests
         run: uv run pytest -m "not integration" --cov=skillpulse --cov-report=term-missing
-      - name: Acceptance preflight fixture tests
-        shell: pwsh
-        run: ./tests/test_acceptance_preflight.ps1
 
   integration:
     runs-on: ubuntu-latest

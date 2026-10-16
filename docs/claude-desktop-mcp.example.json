@@ -1,5 +1,5 @@
 {
-  "_comment": "Example Claude Desktop MCP config for SkillPulse (M5). Replace the two absolute paths with this checkout's Python and repo root. Not validated against the Claude Desktop GUI (see docs/m5-acceptance.md, 'Blocked gates').",
+  "_comment": "Example Claude Desktop MCP config for SkillPulse. Replace the two absolute paths with this checkout's Python and repo root. The server itself is verified with MCP Inspector over stdio (see README); this file is not validated against the Desktop GUI.",
   "mcpServers": {
     "skillpulse": {
       "command": "C:/path/to/skillpulse-agent/.venv/Scripts/python.exe",
