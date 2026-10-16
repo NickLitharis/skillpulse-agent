@@ -53,13 +53,16 @@ TOOL_SPECS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "skill_trend",
-        "description": "Monthly share of posts mentioning one skill, with numerator and "
-        "eligible denominator per month.",
+        "description": "Monthly share of posts mentioning ONE skill, with numerator and "
+        "eligible denominator per month. For any question that asks to compare skills, "
+        "use compare_skills instead.",
         "args_schema": SkillTrendArgs.model_json_schema(),
     },
     {
         "name": "compare_skills",
-        "description": "Side-by-side counts and monthly trends for 1 to 5 skills.",
+        "description": "Compare skills: side-by-side counts and monthly trends for 1 to 5 "
+        "skills. Use this whenever the question asks to compare skills, even when only one "
+        "skill is named (a one-skill comparison is valid here, not in skill_trend).",
         "args_schema": CompareSkillsArgs.model_json_schema(),
     },
     {

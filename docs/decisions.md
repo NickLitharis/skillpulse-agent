@@ -100,8 +100,7 @@ reason; a Celery task raises `LiveFetchDisabledError` and is not retried.
 Content without express authorization, and the HN API README states no explicit content
 reuse licence; the YC User Content licence is not a grant to API consumers. So
 authorization is unresolved and no live ingestion, back-fill or discovery runs. Record:
-[docs/terms.md](terms.md); acceptance evidence:
-[docs/m1-m2-acceptance.md](m1-m2-acceptance.md).
+[docs/terms.md](terms.md).
 
 **Not a clearance toggle.** Enabling the flag does not assert permission. It only opens
 the gate after an explicit authorization decision is recorded in `docs/terms.md`. Tests
@@ -177,3 +176,52 @@ failing closed is the only honest option.
 **Consequence.** M4 is partial: the fake-model fixture baseline is recorded, but the
 real-model S3/S4 numbers need an explicit credential and shared budget and remain
 blocked, so `eval/results/agent_fixture_fake.json` is never quoted as a real result.
+
+## D009 — Real-model choice, chosen by screening rather than reputation (2026-10-16)
+
+**Decision.** The v1 real-model results are produced with
+`nvidia/nemotron-3-super-120b-a12b` over the NVIDIA NIM OpenAI-compatible endpoint.
+
+**How it was chosen.** The key can see 81 models. Fourteen general-instruction candidates
+(embedding, rerank, guard, code-only and vision models excluded) were probed once each
+through the production `build_extractor`, and survivors were scored on an 8-post subset.
+Only two were usable: `openai/gpt-oss-20b` and `nvidia/nemotron-3-super-120b-a12b`. The
+rest timed out at 60 s and again at 120 s (`z-ai/glm-5.3`, `google/gemma-4-31b-it`,
+`deepseek-ai/deepseek-v4.1-flash`, `nemotron-3.5-lightning-30b-a3b`), returned `503`
+(`nemotron-3-nano-omni-30b-a3b-reasoning`), or returned `404` for a model the catalogue
+still lists (`nemotron-3-ultra-550b`, `nemotron-nano-3-30b`, `kimi-k2.6`, every
+`llama-3.1-nemotron-*`). `z-ai/glm-5.3-flash` answered correctly but took 70–81 s per
+call. Screening numbers, which are **not** the official S2/S3/S4 results: extraction
+micro-F1 0.9667 (gpt-oss-20b) versus 0.9492 (nemotron-3-super); agent correctness on the
+8-case slice 0.75 versus 0.875. Nemotron was picked because the agent side is the harder
+target (≥ 0.85) and both models clear extraction (≥ 0.85) comfortably.
+
+## D010 — The planner must be shown its own argument schemas (2026-10-16)
+
+**Decision.** `OpenAIAgentModel.plan()` sends each tool's `args_schema` to the model, along
+with the exact role-family ids, the exact skill ids, the `month_from`/`month_to`
+`YYYY-MM-DD` convention, and an instruction to ask back rather than guess a filter.
+
+**The defect.** Until now `plan()` built its prompt from tool *names and descriptions* and
+discarded the `args_schema` that `TOOL_SPECS` already provides. A real model therefore had
+to guess argument names, produced `skill`/`year`/`location`/`filter`, and — because
+`ToolFilters` allowed extra fields by default — the tool layer **silently dropped the
+filter and returned rows for the wrong question**. Both candidate models scored exactly
+`0.25` correctness, with the same `tool_failure`, which is what exposed it.
+
+**Three further corrections came with it.** `ToolFilters` is now `extra="forbid"`, so an
+unknown argument fails loudly instead of answering a different question. The graph logs the
+real exception where it previously swallowed every failure into "A data tool failed" with no
+cause. And a plan or draft that comes back empty or non-JSON is retried once before the run
+is lost.
+
+**Why this is not tuning.** The dataset, the fixture, the ground truth and the thresholds are
+unchanged. The fake CI model carries a private `_year_window()` helper that converts a year
+into a date window; the real model was never shown that contract. Correcting the interface is
+what moves the number (`0.25` → `0.875` on the same 8 cases); whatever remains is reported as
+it falls. `skill_trend` and `compare_skills` now also state which one a "compare" question
+wants, because both models chose `skill_trend` for a single-skill comparison.
+
+**Consequence.** The plan prompt is larger, so token cost per call rises; the shared
+`RedisDailyBudget` still bounds it. `TOOL_SPECS` serves the MCP server as well, so the MCP
+tool descriptions changed with it.
