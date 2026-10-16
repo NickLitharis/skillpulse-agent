@@ -48,6 +48,21 @@ def test_plan_prompt_carries_the_argument_schemas() -> None:
     assert "backend" in prompt, "valid role family ids must be listed"
 
 
+def test_plan_prompt_states_when_to_clarify_and_when_to_refuse() -> None:
+    """A question with one usable filter is answerable; only a filterless one is vague."""
+    client = RecordingClient([json.dumps({"tool_calls": []})])
+    model = OpenAIAgentModel(client, max_output_tokens=64)
+
+    model.plan(
+        "Which skills are most requested in remote posts?", load_taxonomy(), TOOL_SPECS
+    )
+
+    prompt = client.prompts[0]
+    assert "Call a tool whenever the question supplies at least one filter" in prompt
+    assert "only when the question supplies no filter" in prompt
+    assert '"refuse":true' in prompt, "off-topic questions must refuse, not ask back"
+
+
 def test_plan_retries_an_empty_reply_once() -> None:
     client = RecordingClient(["", json.dumps({"clarify": "Which role family?"})])
     model = OpenAIAgentModel(client, max_output_tokens=64)

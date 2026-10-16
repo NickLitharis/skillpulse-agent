@@ -433,8 +433,13 @@ class OpenAIAgentModel:
             "- Use only the argument names in the tool's args_schema; never invent one.\n"
             '- Dates are "YYYY-MM-DD" strings. For the calendar year YYYY pass '
             '"month_from": "YYYY-01-01" and "month_to": "YYYY-12-01".\n'
-            "- Ask back with {\"clarify\":\"...\"} when the question names no role family, "
-            "skill, region or time window, instead of guessing a filter.\n\n"
+            "- Call a tool whenever the question supplies at least one filter (a skill, a "
+            "role family, a country, a remote state) or a time window; use the default "
+            "top_n and limit.\n"
+            '- Reply {"clarify":"..."} only when the question supplies no filter and no '
+            "time window at all, so that any query would be a guess.\n"
+            '- Reply {"refuse":true} when the question is not about this job-market dataset '
+            "at all (weather, sport results, poems, general chat).\n\n"
             f"<question>\n{question}\n</question>\n\n"
             'Reply with JSON: {"tool_calls":[{"name":...,"args":{...}}]} or '
             '{"clarify":"..."} or {"refuse":true} or {"infeasible_reason":"..."}.'
