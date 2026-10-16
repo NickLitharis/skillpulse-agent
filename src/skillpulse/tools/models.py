@@ -35,7 +35,10 @@ SOURCE_COVERAGE_CAVEAT = (
 class ToolFilters(BaseModel):
     """Filters shared by every tool; all bounds are enforced before SQL runs."""
 
-    model_config = ConfigDict(frozen=True)
+    # ``extra="forbid"`` is deliberate: an unknown argument name (a model asking for
+    # ``year`` or ``location`` instead of ``month_from``/``country``) must fail loudly.
+    # Silently dropping the filter returns plausible rows for the wrong question.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     extractor: Extractor = "baseline"
     role_family: str | None = None

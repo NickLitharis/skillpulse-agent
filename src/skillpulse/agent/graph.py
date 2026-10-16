@@ -161,8 +161,17 @@ def run_agent(
             used += 1
             try:
                 result = runtime.call(call["name"], call["args"])
-            except Exception:
-                logger.warning("A data tool failed")
+            except Exception as exc:
+                # Log the cause: a bare "a data tool failed" hides whether the model sent
+                # an invalid argument, an unknown skill id or a genuinely broken query.
+                logger.warning(
+                    "tool %s failed with args %s: %s: %s",
+                    call["name"],
+                    call["args"],
+                    type(exc).__name__,
+                    exc,
+                    exc_info=True,
+                )
                 return {"results": results, "tool_calls_used": used, "error": "tool_failure",
                         "partial": True}
             emit(

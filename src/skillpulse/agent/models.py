@@ -20,7 +20,7 @@ import redis
 from skillpulse.agent.grounding import Claim
 from skillpulse.config import Settings, get_settings
 from skillpulse.extraction.budget import RedisDailyBudget, TokenBudget
-from skillpulse.extraction.llm import LLMUnavailableError, estimate_tokens
+from skillpulse.extraction.llm import LLMExtractionError, LLMUnavailableError, estimate_tokens
 from skillpulse.extraction.providers import OpenAICompatibleClient
 from skillpulse.extraction.taxonomy import Taxonomy
 from skillpulse.tools import ToolResult
@@ -393,19 +393,53 @@ class OpenAIAgentModel:
         if not self._budget.try_consume(cost):
             raise LLMUnavailableError("agent daily token budget exhausted")
 
+    def _complete_json(self, prompt: str) -> dict[str, Any]:
+        """One JSON-object reply, retried once: an empty body must not lose the run."""
+        last: Exception | None = None
+        for attempt in range(2):
+            self._reserve(prompt)
+            raw = self._client.complete_json(system=SYSTEM_PROMPT, prompt=prompt)
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                last = exc
+                logger.warning("agent model returned invalid JSON (attempt %d)", attempt + 1)
+                continue
+            if isinstance(payload, dict):
+                return payload
+            last = LLMExtractionError(f"expected a JSON object, got {type(payload).__name__}")
+        raise LLMExtractionError(f"agent model did not return a JSON object: {last}")
+
     def plan(
         self, question: str, taxonomy: Taxonomy, tool_specs: tuple[dict[str, Any], ...]
     ) -> PlanResult:
-        specs = [{"name": s["name"], "description": s["description"]} for s in tool_specs]
+        # The argument schemas are the contract. Dropping them makes the model guess
+        # argument names (``skill``/``year``/``location``), which the tool layer either
+        # rejects or, worse, silently ignores.
+        specs = [
+            {
+                "name": spec["name"],
+                "description": spec["description"],
+                "args_schema": spec.get("args_schema", {}),
+            }
+            for spec in tool_specs
+        ]
         prompt = (
-            f"Tools:\n{json.dumps(specs)}\n\nRole families: {sorted(taxonomy.role_family_ids)}\n\n"
+            f"Tools:\n{json.dumps(specs)}\n\n"
+            f"Role families (exact ids for role_family): {sorted(taxonomy.role_family_ids)}\n\n"
+            f"Skill ids (exact ids for skill_id/skill_ids): "
+            f"{sorted(skill.id for skill in taxonomy.skills)}\n\n"
+            "Rules:\n"
+            "- Use only the argument names in the tool's args_schema; never invent one.\n"
+            '- Dates are "YYYY-MM-DD" strings. For the calendar year YYYY pass '
+            '"month_from": "YYYY-01-01" and "month_to": "YYYY-12-01".\n'
+            "- Ask back with {\"clarify\":\"...\"} when the question names no role family, "
+            "skill, region or time window, instead of guessing a filter.\n\n"
             f"<question>\n{question}\n</question>\n\n"
             'Reply with JSON: {"tool_calls":[{"name":...,"args":{...}}]} or '
             '{"clarify":"..."} or {"refuse":true} or {"infeasible_reason":"..."}.'
         )
-        self._reserve(prompt)
-        raw = self._client.complete_json(system=SYSTEM_PROMPT, prompt=prompt)
-        payload = json.loads(raw)
+        payload = self._complete_json(prompt)
         calls = [
             ToolCall(name=str(call["name"]), args=dict(call.get("args") or {}))
             for call in payload.get("tool_calls") or []
@@ -428,9 +462,7 @@ class OpenAIAgentModel:
         )
         if rewrite:
             prompt += "\nYour previous answer contained a number not present in the cited results."
-        self._reserve(prompt)
-        raw = self._client.complete_json(system=SYSTEM_PROMPT, prompt=prompt)
-        payload = json.loads(raw)
+        payload = self._complete_json(prompt)
         claims: list[Claim] = []
         for entry in payload.get("claims") or []:
             if not isinstance(entry, dict):
