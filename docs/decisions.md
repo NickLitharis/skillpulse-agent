@@ -262,4 +262,7 @@ insufficient-sample cases pass, so its vocabulary is reachable, and widening it 
 be editing the test to fit the answer.
 
 **Consequence.** The README states the model, the endpoint and the agent timeout the run used,
-so a reader can reproduce the number — or reproduce the failures.
+so a reader can reproduce the number — or reproduce the failures. The timeout gap is recorded
+rather than smoothed over: the run used 60 s while `.env.example` documented 20 s, and a 9-case
+spot check at the documented 20 s passed 9/9 with no timeout, so the documented default is not
+demonstrably wrong — but the committed numbers came from 60 s, and that is what the README says.
