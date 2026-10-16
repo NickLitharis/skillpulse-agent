@@ -1,135 +1,29 @@
 # SkillPulse Agent
 
 A job-market analyser over Hacker News' monthly **"Ask HN: Who is hiring?"** threads.
-Background workers collect the posts, an LLM extracts the skills each post asks for, and
-a LangGraph agent answers questions about skill demand and trends using only database
+Workers collect the posts on a schedule, an LLM extracts the skills each post asks for,
+and a LangGraph agent answers questions about skill demand and trends using only database
 results. The same read-only tools are exposed through an MCP server.
 
-Full design: [SPEC.md](SPEC.md). Architecture decisions: [docs/decisions.md](docs/decisions.md).
+Every number the agent reports comes from a SQL query, and every quality number below comes
+from a command you can re-run. Design: [SPEC.md](SPEC.md). Decisions:
+[docs/decisions.md](docs/decisions.md).
 
-## Status
+Five read-only tools, shared by the agent and the MCP server: `search_jobs`,
+`skill_counts`, `skill_trend`, `compare_skills`, `match_cv`.
 
-Milestones **M6 — local Kubernetes deployment** and **M7 — observability/release** are partial.
-The repository now includes a Helm chart, Terraform resources, local deployment scripts,
-a deployment-check workflow, Prometheus metrics, optional metadata-only Langfuse export,
-and a tag-triggered release workflow. See [the deployment runbook](docs/deployment.md)
-for commands, validation evidence, and remaining acceptance gates. API/MCP use separate read-only
-login credentials; both expose bounded metrics, and API extraction volume comes from stored database rows.
-A real local Langfuse ingestion/read-back check is also verified; run
-`pwsh -NoProfile -File scripts/langfuse-smoke.ps1` for its disposable synthetic stack.
-Deployment CI enforces S1's startup deadline and saves timing/smoke evidence when run remotely.
-Run `pwsh -NoProfile -File scripts/acceptance-preflight.ps1` for offline prerequisite checks;
-see [the remaining acceptance gates](docs/remaining-acceptance.md). These changes do not
-establish real-model quality, real-HN coverage, Claude Desktop acceptance, or production readiness.
-[PR #1](https://github.com/NickLitharis/skillpulse-agent/pull/1) has verified CI and deployment
-checks on code revision `956f597`; the fresh hosted deployment and smoke took **171 seconds**.
-This is PR evidence, not a green `main` deployment or a release.
+## Results
 
-Milestone **M5 — MCP server (stdio + HTTP)** (partial):
+| What | Dataset | Result |
+|------|---------|--------|
+| Baseline extraction (alias matcher) | 40 synthetic posts | micro-F1 0.9910, macro-F1 0.9783 |
+| LLM extraction (S2) | same 40 posts | pending — see [SPEC §16 R1](SPEC.md) |
+| Agent answers (S3, correctness) | 64 questions, 222 facts | pending — see [SPEC §16 R1](SPEC.md) |
+| Agent grounding (S4) | same | pending — see [SPEC §16 R1](SPEC.md) |
 
-- `skillpulse.mcp_server` exposes the **same five read-only tools** over **stdio** and
-  **streamable HTTP** using the official `mcp` SDK (`MCPServer`), not a hand-rolled
-  protocol; every call goes through the same `skillpulse.tools.ToolRuntime` registry,
-  read-only session, bounds and `result_id` — there is no MCP-only query path and no
-  SQL/filesystem/shell tool,
-- the MCP `inputSchema` mirrors the shared typed bounded arguments, `skillpulse://taxonomy`
-  is a read-only resource, and errors are sanitised to safe tool errors (the DSN is never
-  returned),
-- HTTP binds **loopback** by default with DNS-rebinding protection on (bad `Host` → 421,
-  bad `Origin` → 403); a non-loopback bind is refused unless
-  `SKILLPULSE_MCP_ALLOW_NON_LOOPBACK=true`; stdio keeps stdout protocol-only and logs to
-  stderr,
-- real SDK protocol tests cover stdio and an HTTP subprocess, plus a real MCP Inspector
-  CLI roundtrip (`@modelcontextprotocol/inspector@2.11.0`),
-- the browser-based Inspector also connects and runs `skill_counts` against the synthetic
-  fixture; the recorded demo is below.
-
-**M5 is partial, not complete.** The original S8 also names Claude Desktop, which remains
-untested. No Desktop configuration was changed. Claude is an optional MCP client, not an
-application dependency. A ready example config and the manual check are in
-[docs/m5-acceptance.md](docs/m5-acceptance.md).
-
-Milestone **M4 — tools, LangGraph agent, `/v1/ask`, fixture DB and agent eval** (partial):
-
-- `skillpulse.tools` holds the five read-only tools (`search_jobs`, `skill_counts`,
-  `skill_trend`, `compare_skills`, `match_cv`) with typed bounded arguments and fixed
-  parameterized SQL — the model never writes SQL, and a tool result carries a
-  content-addressed `result_id`, the extractor/taxonomy provenance, the eligible-post
-  denominator and the coverage caveat,
-- every tool query runs in a read-only session (`READ ONLY` on Postgres, `query_only` on
-  SQLite) with a statement timeout and a row cap; migration `0003` adds a `NOLOGIN`
-  `skillpulse_readonly` role with `SELECT` only and no embedded credential,
-- a native **LangGraph** agent runs plan → tools → draft → grounding with finite bounds
-  (6 tool calls, one rewrite, a deadline, disconnect cancellation); the real model path
-  reuses the M3 OpenAI-compatible client and the shared Redis budget and is **off by
-  default**,
-- the **grounding check** fails closed on a fabricated citation and only lets a typed
-  `share`/`rate` field prove a percentage; invented numbers are logged and blocked,
-- `POST /v1/ask` streams SSE (`plan`, `tool_call`, `tool_result`, `token`, `done` with
-  `trace_id`/`partial`/`grounded`, `error`), returns `503` when Postgres is down and
-  cancels on disconnect,
-- a deterministic **fixture database** (no post text) and 9 agent smoke cases run in CI; the
-  fake-model result is `eval/results/agent_fixture_fake.json`,
-- a canonical **five-year synthetic evaluation fixture** (2019-2023, 1800 metadata-only
-  posts, versioned SHA-256 row hash) and a **64-question, 222-fact agent set** across all
-  five tools and every SPEC §11 category, with independently SQL-computed expected facts, a
-  2-question regression gate and failure-sensitive controls; the run is tagged
-  `model=fake` / `source=synthetic_fixture` / `not_real_acceptance` in
-  `eval/results/agent_fixture_synthetic.json` — it is a contract check, never a real-model
-  S3/S4 number.
-
-**M4 is partial, not complete.** The real-model S3/S4 numbers need
-`SKILLPULSE_AGENT_LLM_ENABLED` plus an OpenAI-compatible credential and shared budget,
-which were not supplied; see [docs/m4-acceptance.md](docs/m4-acceptance.md).
-
-Milestone **M3 — taxonomy, extraction and trends** (partial). What exists now:
-
-- `config/skills.yaml` holds 336 skills in 13 categories plus 10 role families; the
-  loader validates ids and aliases and rejects duplicates,
-- the deterministic **baseline** extractor matches aliases on Unicode word boundaries
-  with negation ("no Kubernetes", "ohne Docker") and nice-to-have rules
-  (`required=false`),
-- the **LLM** extractor uses structured output validated against the taxonomy, retries
-  invalid JSON once and isolates post text as untrusted data (prompt-injection guard);
-  the real OpenAI-compatible provider adapter is off by default, reads its key only from
-  `SKILLPULSE_LLM_API_KEY`, and **fails closed without a shared atomic Redis daily
-  budget**; a failure stores the baseline flagged as a fallback,
-- migration `0002` adds `post_extractions` and `post_skills`, plus the materialised views
-  `skill_trend_mv` and `skill_segment_mv` (refreshed with `REFRESH ... CONCURRENTLY`),
-  with a 3-state `remote_state` so `remote=false` excludes unclassified posts,
-- `/v1/skills/top`, `/v1/skills/{id}/trend` and `/v1/coverage` serve exact
-  numerator/denominator counts; `total_posts` means eligible posts (for the requested
-  extractor/taxonomy), and a share is withheld below 30 posts,
-- `skillpulse taxonomy | extract | eval extraction | refresh-trends` wrap the same code.
-
-**M3 is partial, not complete.** The real-LLM F1 (S2) and the ~150-post real-HN labelled
-set need the M1 authorization plus an LLM provider credential, so no real-LLM number is
-claimed. `eval/results/baseline_synthetic.json` is a **synthetic** baseline result; see
-[docs/m3-acceptance.md](docs/m3-acceptance.md) and
-[docs/milestones.json](docs/milestones.json) for the honest status per milestone.
-
-Milestone **M2 — Celery/Redis workers** (partial: full back-fill blocked). The
-asynchronous slice of SPEC §8 now runs behind Redis:
-
-- `skillpulse.workers.app` is the Celery app; `skillpulse.workers.tasks` wraps the
-  already-tested `fetch_service` functions, so the CLI and the workers run the same code,
-- `discover_threads` queues one `fetch_thread` task per hiring thread (the back-fill
-  fan-out), and `refresh_recent_threads` queues the current and previous month,
-- Celery beat schedules that refresh every 6 hours, and a transient HN error is retried
-  with backoff, resuming from the last committed batch,
-- politeness and overlap control are Redis-wide: one shared 10 requests/second token bucket
-  (SPEC §8.5) and an expiring per-thread lock that makes a second worker skip a thread it
-  does not own (SPEC §8.6),
-- the same idempotent upsert means re-running a task creates **zero duplicates** (S5), and
-  a failed run is still recorded in `fetch_runs` with its resume point (S6).
-
-Milestone **M1 — ingestion skeleton** remains the fetching slice: find every
-"Who is hiring?" thread, fetch its top-level comments at <= 10 requests/second, clean the
-HTML, strip recruiter e-mails and phone numbers, and upsert on the HN item id.
-
-Not built yet: the MCP server (`stdio` + HTTP), Helm/Terraform, and the Kubernetes
-deployment. The full historical back-fill remains blocked on the authorization gate below,
-and a real-model agent/extraction acceptance run needs a provider credential and budget.
+The harness itself is verified with a deterministic **fake model**: 222/222 facts passed,
+correctness 1.0, grounding 1.0. That is a contract check on the scorer and the grounding
+gate, not a model-quality result. PR checks use it so CI stays free and keyless.
 
 ## Quick start
 
@@ -144,36 +38,39 @@ make threads                  # list the hiring threads found on HN
 make fetch THREAD=49922569    # fetch one thread's posts
 ```
 
-Or run a bounded back-fill (newest threads first):
+Fetch a bounded window of recent threads, newest first:
 
 ```bash
 uv run skillpulse backfill --limit 3
 ```
 
+**Live Hacker News access is gated and off by default.** `threads`, `fetch`, `backfill`
+and the workers refuse to run unless `SKILLPULSE_HN_LIVE_FETCH_ENABLED=true`, because
+authorization to store HN post text is unresolved. The flag opens the gate; it is not a
+claim of permission. See [docs/terms.md](docs/terms.md).
+
 ## Workers
 
-Start a worker and the scheduler in two terminals (Redis and Postgres must be up):
+Start a worker and the scheduler in two terminals (Postgres and Redis must be up):
 
 ```bash
 make worker                   # celery -A skillpulse.workers.app worker --pool=solo
 make beat                     # celery -A skillpulse.workers.app beat
 ```
 
-The beat schedule refreshes the current and previous month's threads every 6 hours
-(`SKILLPULSE_CELERY_UPDATE_INTERVAL_SECONDS`, default 21600). To fan out a bounded
-back-fill by hand, queue one `fetch_thread` task:
-
-```bash
-uv run celery -A skillpulse.workers.app call skillpulse.workers.tasks.fetch_thread --args='[49922569]'
-```
+Beat refreshes the current and previous month's threads every 6 hours
+(`SKILLPULSE_CELERY_UPDATE_INTERVAL_SECONDS`, default 21600) and runs a nightly refresh of
+the trend views. `worker-skills` extracts pending posts in bounded batches. Re-running a
+fetch creates zero duplicates (upsert on the HN item id), and a failed run resumes from
+where it stopped.
 
 ## MCP server
 
 The MCP server reuses the same read-only tools as the agent, so it needs no separate SQL.
-Use a read-only login in its database URL. Local Kubernetes deployment supplies its own MCP login:
+Give it a read-only database login; the local Kubernetes deployment supplies its own.
 
 ```bash
-# stdio (for MCP clients such as Claude Desktop)
+# stdio (for Claude Desktop and other MCP clients)
 .venv/Scripts/python.exe -m skillpulse.mcp_server --transport stdio
 .venv/Scripts/python.exe -m skillpulse.mcp_server --transport stdio --fixture   # fixture DB, no Postgres
 
@@ -181,97 +78,108 @@ Use a read-only login in its database URL. Local Kubernetes deployment supplies 
 .venv/Scripts/python.exe -m skillpulse.mcp_server --transport streamable-http --port 8765
 ```
 
-`skillpulse-mcp` is installed as an alias of the same entry point. A ready Claude
-Desktop config is at [docs/claude-desktop-mcp.example.json](docs/claude-desktop-mcp.example.json);
-the transport, security and blocked-gate details are in
-[docs/m5-acceptance.md](docs/m5-acceptance.md).
+`skillpulse-mcp` is an alias of the same entry point, and `skillpulse://taxonomy` is a
+read-only resource so a client can pick valid skill ids. A ready Claude Desktop config is
+at [docs/claude-desktop-mcp.example.json](docs/claude-desktop-mcp.example.json).
 
 ### Inspector demo (synthetic data)
 
-MCP Inspector **2.11.0** connects over stdio to `skillpulse-mcp --fixture`, lists all
-five tools, and runs `skill_counts`. The result contains eight rows with 480 eligible
-fixture posts. These are synthetic counts, not measured Hacker News coverage.
-No HN access, model call or Desktop configuration is involved.
+MCP Inspector **2.11.0** connects over stdio to `skillpulse-mcp --fixture`, lists all five
+tools, and runs `skill_counts`. The result has eight rows over 480 fixture posts. These are
+synthetic counts: no HN access, no model call, no Desktop configuration.
 
 ![MCP Inspector runs skill_counts on the synthetic SkillPulse fixture](docs/assets/inspector-demo.gif)
 
-The GIF records the actual browser UI and tool result. It is not a mockup or evidence
-of Claude Desktop, hosted model quality or a production deployment.
+## API
+
+`uv run uvicorn skillpulse.api.app:app` serves `POST /v1/ask` (the agent answer, streamed
+over SSE), `GET /v1/skills/top`, `/v1/skills/{id}/trend`, `/v1/coverage`, `/healthz`,
+`/readyz` and `/metrics`. `/v1/ask` needs a configured agent model; without one it returns
+`503` rather than inventing an answer. Stats endpoints report the post count behind every
+share and withhold a share below 30 posts.
+
+## Kubernetes
+
+```bash
+make up                       # build images, install the chart on a local k3d cluster
+make smoke                    # end-to-end smoke test against the running stack
+make down                     # delete the cluster
+```
+
+`make up` creates the k3d cluster and registry, builds the images, then runs `terraform
+apply`, which installs the CloudNativePG operator and a Postgres cluster before the Helm
+chart. `make secrets` creates the Kubernetes Secret from `.env` with `kubectl`, so no secret
+enters the chart, the Terraform state or version control. Every Deployment runs non-root
+with resource limits and probes; `beat` is pinned to one replica with the `Recreate`
+strategy. CI runs the same install and smoke test on every PR. The runbook is
+[docs/deployment.md](docs/deployment.md).
+
+## Tests and evaluation
+
+```bash
+make check                    # ruff + mypy (strict) + unit tests, no Docker needed
+make test-integration         # real Postgres 16 via testcontainers (needs Docker)
+
+uv run skillpulse taxonomy            # print the loaded taxonomy
+uv run skillpulse eval extraction     # baseline F1 -> eval/results/baseline_synthetic.json
+uv run skillpulse eval agent          # fixture + fake model -> eval/results/agent_fixture_fake.json
+
+# real-model runs (need SKILLPULSE_LLM_* / SKILLPULSE_AGENT_LLM_* and `make redis-up`)
+uv run skillpulse eval extraction --extractor llm
+uv run skillpulse eval agent --real-model \
+  --dataset eval/datasets/agent_eval_cases.json \
+  --fixture-profile synthetic --source synthetic_fixture
+```
+
+A real run needs a provider, so CI uses the fake model. The agent set and the five-year
+fixture are committed and hold no post text, so a reader can reproduce any number. The
+agent must not quote a share based on fewer than 30 posts, and expected facts are computed
+by SQL over the raw fixture tables, not by the tools under test.
 
 ## Layout
 
 ```
 src/skillpulse/
-  hn_client.py        HN API client: typed items, token-bucket rate limit, retries
+  hn_client.py        HN API client: typed items, token bucket, retries
   text_cleaning.py    HTML -> text, PII stripping, thread-title month parsing
   models.py           SQLAlchemy models: threads, posts, fetch_runs, skills
-  repository.py       idempotent upserts and fetch-run bookkeeping
   fetch_service.py    find threads, fetch a thread, back-fill
-  extraction/         taxonomy loader, baseline + LLM extractors, persistence, service
+  extraction/         taxonomy loader, baseline + LLM extractors, persistence
   trends.py           trend statistics over the materialised views
   tools/              the five read-only tools (shared by the agent and the MCP server)
-  mcp_server/         MCP server: stdio + streamable HTTP over the shared tools
-  agent/              LangGraph graph, planner/drafter models, grounding check
-  api/app.py          FastAPI stats endpoints (/v1/skills, /v1/coverage) and /v1/ask SSE
-  eval/               labelled-set extraction scoring, fixture DB and agent evaluation
-  runtime.py          shared client/session wiring for the CLI and the workers
-  workers/
-    app.py            Celery app: Redis broker/backend, beat schedule
-    tasks.py          fetch_thread, discover_threads, refresh_recent_threads,
-                      extract_pending, refresh_trend_views
-    skills.py         bounded, idempotent extraction batches (worker-skills)
+  mcp_server/         MCP server: stdio + streamable HTTP
+  agent/              LangGraph graph, model adapters, grounding check
+  api/app.py          FastAPI stats endpoints and /v1/ask SSE
+  workers/            Celery app, beat schedule, fetch + extract tasks
+  eval/               labelled-set scoring, fixture DB, dataset builder, agent evaluation
   cli.py              skillpulse threads | fetch | backfill | extract | eval | refresh-trends
-alembic/              migrations (0001 ingestion, 0002 extraction/trends, 0003 read-only role)
+config/               skills.yaml (336 skills, 13 categories), role_families.yaml
+alembic/              migrations: 0001 ingestion, 0002 extraction/trends, 0003 read-only role
+eval/                 datasets (no post text), committed results, baseline_agent.json
+deploy/helm/          the Helm chart
+infra/                Terraform: namespace, CloudNativePG, Postgres, Redis, Helm release
 tests/                unit tests + Postgres/Redis testcontainers integration tests
+docs/                 decisions.md, terms.md, deployment.md
 ```
-
-## Tests
-
-```bash
-make check             # ruff + mypy (strict) + unit tests, no Docker needed
-make test-integration  # real Postgres 16 and Redis 7 via testcontainers (needs Docker)
-
-uv run skillpulse taxonomy            # print the loaded taxonomy
-uv run skillpulse eval extraction     # synthetic baseline F1 -> eval/results/
-uv run skillpulse eval agent          # tiny fixture + fake model -> eval/results/
-
-# canonical 64-question agent set on the frozen five-year synthetic fixture (fake model,
-# synthetic provenance; regenerate the dataset with `eval build-agent-cases`)
-uv run skillpulse eval build-agent-cases
-uv run skillpulse eval agent --dataset eval/datasets/agent_eval_cases.json \
-  --fixture-profile synthetic --source synthetic_fixture \
-  --out eval/results/agent_fixture_synthetic.json
-
-uv run skillpulse refresh-trends      # refresh the trend materialised views
-uv run uvicorn skillpulse.api.app:app # stats API on localhost:8000
-
-# real MCP Inspector CLI roundtrip (needs Node/npx; pinned inspector 2.11.0)
-SKILLPULSE_RUN_INSPECTOR=1 .venv/Scripts/python.exe -m pytest tests/test_m5_inspector.py
-```
-
-`POST /v1/ask` needs a configured agent model; without `SKILLPULSE_AGENT_LLM_ENABLED` it
-returns `503` rather than inventing an answer. The tools connect with a read-only role
-(migration `0003`); the operator provisions its login and password outside the repository.
 
 ## Data source, terms and attribution
 
-**Live fetching is gated.** Authorization to read and store Hacker News post text is
-unresolved, so `skillpulse threads|fetch|backfill` and the workers refuse unless
-`SKILLPULSE_HN_LIVE_FETCH_ENABLED=true` is set after a decision is recorded in
-[docs/terms.md](docs/terms.md). Acceptance evidence and the honest coverage gaps are in
-[docs/m1-m2-acceptance.md](docs/m1-m2-acceptance.md). The flag is a gate, not a claim of
-permission.
-
-Data comes only from the official Hacker News API (`https://hacker-news.firebaseio.com/v0/`,
-no key). Post text stays in the local database; only counts, metadata and links leave it.
-E-mails and phone numbers are stripped before storage, and the HN username (`by`) is not
-stored.
-
-Every post is attributable to `https://news.ycombinator.com/item?id=<id>`.
-Posts belong to their authors; Hacker News is credited here as the source.
+Data comes only from the official Hacker News API
+(`https://hacker-news.firebaseio.com/v0/`, no key). Every post is attributable to
+`https://news.ycombinator.com/item?id=<id>`. Emails and phone numbers are stripped before
+storage, the HN username (`by`) is not stored, and post text stays in the local database and
+is never exported. Only counts, metadata and links leave it.
 
 **Limits:** the data leans toward US and remote roles, has few European on-site posts, and
 almost no Greek ones. It reflects companies that post on Hacker News, not the whole market.
+The committed evaluation datasets are synthetic, so they are public and carry no personal
+data. Live authorization is unresolved — see [docs/terms.md](docs/terms.md).
+
+## Status
+
+Ingestion, extraction, trends, the agent, the MCP server, the Helm chart and CI are built
+and tested. What remains is one real-model evaluation run, a green `main` deploy, and the
+last documentation trim: [SPEC §16](SPEC.md).
 
 ## Licence
 
