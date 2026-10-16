@@ -16,10 +16,16 @@ Five read-only tools, shared by the agent and the MCP server: `search_jobs`,
 
 | What | Dataset | Result |
 |------|---------|--------|
-| Baseline extraction (alias matcher) | 40 synthetic posts | micro-F1 0.9910, macro-F1 0.9783 |
-| LLM extraction (S2) | same 40 posts | pending — see [SPEC §16 R1](SPEC.md) |
+| Baseline extraction (alias matcher) | 40 synthetic posts | micro-F1 0.991, macro-F1 0.9783 |
+| LLM extraction (S2) | same 40 posts | micro-F1 **0.9552**, macro-F1 0.9442, required-accuracy 0.925, unknown-rate 0.006 — `nvidia/nemotron-3-super-120b-a12b` |
 | Agent answers (S3, correctness) | 64 questions, 222 facts | pending — see [SPEC §16 R1](SPEC.md) |
 | Agent grounding (S4) | same | pending — see [SPEC §16 R1](SPEC.md) |
+
+Both real-model rows use `nvidia/nemotron-3-super-120b-a12b` over an OpenAI-compatible
+NVIDIA NIM endpoint, chosen by screening the key's live catalogue rather than by
+reputation ([D009](docs/decisions.md)). Every row above is **synthetic data**: live
+Hacker News text stays gated ([D006](docs/decisions.md)), so none of these is a
+real-data result and none is a claim about real hiring demand.
 
 The harness itself is verified with a deterministic **fake model**: 222/222 facts passed,
 correctness 1.0, grounding 1.0. That is a contract check on the scorer and the grounding
