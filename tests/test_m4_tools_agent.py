@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,12 +16,13 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
 from skillpulse.agent.graph import run_agent
-from skillpulse.agent.models import FakeAgentModel
+from skillpulse.agent.models import DraftResult, FakeAgentModel, PlanResult
 from skillpulse.api.app import create_app
 from skillpulse.eval.agent_eval import FailingToolRuntime, InventingAgentModel
 from skillpulse.eval.fixture import build_fixture_engine
-from skillpulse.extraction.taxonomy import load_taxonomy
+from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
 from skillpulse.tools import TOOL_NAMES, ToolRuntime
+from skillpulse.tools.models import ToolResult
 from skillpulse.tools.readonly import ReadOnlyViolation, readonly_session
 from skillpulse.tools.registry import ToolInputError, call_tool
 
@@ -186,6 +188,76 @@ def test_cancellation_stops_the_run(runtime: ToolRuntime) -> None:
     )
     assert run.error == "cancelled"
     assert run.partial is True
+
+
+@pytest.mark.parametrize("phase", ["plan", "draft"])
+@pytest.mark.parametrize("elapsed", [59.0, 60.0, 61.0])
+def test_agent_checks_deadline_after_model_calls(
+    runtime: ToolRuntime, phase: str, elapsed: float,
+) -> None:
+    now = 0.0
+    marker = "MODEL_REPLY_SENTINEL"
+
+    class TimedModel(FakeAgentModel):
+        def plan(
+            self, question: str, taxonomy: Taxonomy, tool_specs: list[dict[str, Any]],
+        ) -> PlanResult:
+            nonlocal now
+            if phase == "plan":
+                now = elapsed
+                return PlanResult(refuse=True)
+            return super().plan(question, taxonomy, tool_specs)
+
+        def draft(
+            self, question: str, results: list[ToolResult], *, rewrite: bool = False,
+        ) -> DraftResult:
+            nonlocal now
+            assert results
+            now = elapsed
+            return DraftResult(answer=marker, citations=[results[0].result_id])
+
+    run = run_agent(
+        "What are the top skills?", runtime=runtime, model=TimedModel(),
+        taxonomy=load_taxonomy(), overall_timeout_seconds=60, clock=lambda: now,
+    )
+    assert bool(run.results) == (phase == "draft")
+    if elapsed < 60:
+        assert run.error is None
+        assert run.partial is False
+        assert run.refused == (phase == "plan")
+        if phase == "draft":
+            assert marker in run.answer
+    else:
+        assert run.error == "timeout"
+        assert run.partial is True
+        assert run.refused is False
+        assert marker not in run.answer
+        done = next(event["data"] for event in run.events if event["event"] == "done")
+        assert done["partial"] is True
+
+
+@pytest.mark.parametrize("phase", ["plan", "draft"])
+def test_agent_checks_cancellation_after_model_calls(
+    runtime: ToolRuntime, monkeypatch: pytest.MonkeyPatch, phase: str,
+) -> None:
+    cancelled = False
+    model = FakeAgentModel()
+    original = getattr(model, phase)
+
+    def cancel_after_call(*args: Any, **kwargs: Any) -> PlanResult | DraftResult:
+        nonlocal cancelled
+        result = original(*args, **kwargs)
+        cancelled = True
+        return result
+
+    monkeypatch.setattr(model, phase, cancel_after_call)
+    run = run_agent(
+        "What are the top skills?", runtime=runtime, model=model,
+        taxonomy=load_taxonomy(), cancel_check=lambda: cancelled,
+    )
+    assert run.error == "cancelled"
+    assert run.partial is True
+    assert run.answer == "The request was cancelled."
 
 
 def test_tool_failure_is_safe(runtime: ToolRuntime, factory: sessionmaker[Session]) -> None:

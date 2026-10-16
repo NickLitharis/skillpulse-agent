@@ -1,9 +1,9 @@
 """LangGraph agent (SPEC section 9): plan -> tools -> draft -> grounding check -> answer.
 
 Bounds are explicit and finite: at most ``max_tool_calls`` tool calls, one grounding
-rewrite, and an overall wall-clock deadline. Every node checks a cancellation callback
-and the deadline, so a client disconnect or a slow database stops the run at a node
-boundary instead of running to completion.
+rewrite, and an overall wall-clock deadline. Model/tool boundaries check cancellation
+and the deadline. In-flight synchronous calls are not interrupted; model replies
+returned at or after the deadline are discarded.
 
 The graph is built with ``langgraph.graph.StateGraph``. It is deterministic under
 :class:`~skillpulse.agent.models.FakeAgentModel` (used by CI) and uses a real model only
@@ -113,18 +113,18 @@ def run_agent(
 
     def stopped() -> bool:
         if cancel_check is not None and cancel_check():
-            return True
-        return clock() > deadline
+            raise AgentCancelled("client disconnected")
+        return clock() >= deadline
 
     def emit(event: str, data: dict[str, Any]) -> None:
         events.append({"event": event, "data": data})
 
     def plan_node(state: AgentState) -> AgentState:
-        if cancel_check is not None and cancel_check():
-            raise AgentCancelled("client disconnected before planning")
-        if clock() > deadline:
+        if stopped():
             return {"timed_out": True, "error": "timeout"}
         plan = model.plan(state["question"], taxonomy, runtime_specs)
+        if stopped():
+            return {"timed_out": True, "error": "timeout"}
         emit(
             "plan",
             {
@@ -185,16 +185,18 @@ def run_agent(
             )
             results.append(result)
         update: AgentState = {"results": results, "tool_calls_used": used}
-        if stopped() and clock() > deadline:
+        if stopped():
             update["timed_out"] = True
             update["partial"] = True
         return update
 
     def draft_node(state: AgentState) -> AgentState:
         if stopped():
-            return {"draft": "", "partial": True, "timed_out": clock() > deadline}
+            return {"draft": "", "partial": True, "timed_out": True, "error": "timeout"}
         is_rewrite = state.get("rewrites", 0) > 0
         draft = model.draft(state["question"], state.get("results", []), rewrite=is_rewrite)
+        if stopped():
+            return {"draft": "", "partial": True, "timed_out": True, "error": "timeout"}
         return {"draft": draft.answer, "citations": draft.citations, "claims": draft.claims}
 
     def verify_node(state: AgentState) -> AgentState:
@@ -221,6 +223,8 @@ def run_agent(
         return update
 
     def route_after_verify(state: AgentState) -> str:
+        if state.get("timed_out"):
+            return "end"
         if not state.get("grounded", False) and state.get("rewrites", 0) < 1:
             return "draft"
         return "end"

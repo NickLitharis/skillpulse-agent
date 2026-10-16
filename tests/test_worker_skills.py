@@ -122,6 +122,54 @@ def test_llm_failure_stores_flagged_baseline_and_retries_next_run(
     assert pending == [1, 2, 3]  # the failed posts are retried next run
 
 
+@pytest.mark.parametrize("poison", [False, True])
+def test_pending_extraction_reaches_untouched_posts_after_provider_failures(
+    factory: sessionmaker[Session], poison: bool,
+) -> None:
+    taxonomy = load_taxonomy()
+    baseline = BaselineExtractor(taxonomy)
+    with factory.begin() as session:
+        for post in session.scalars(select(Post).where(Post.id < 3)):
+            post.text_clean = "POISON Python and Docker required"
+
+    class Client:
+        def complete_json(self, *, system: str, prompt: str) -> str:
+            if poison and "POISON" in prompt:
+                raise LLMExtractionError("permanent per-post failure")
+            return '{"skills": []}'
+
+    llm = LLMExtractor(taxonomy, Client())  # type: ignore[arg-type]
+    for _ in range(2):
+        run_extract_pending(factory, taxonomy=taxonomy, baseline=baseline, llm=llm,
+                            limit=2, batch_size=2)
+
+    with factory() as session:
+        healthy_result = session.scalar(
+            select(PostExtractionRow).where(
+                PostExtractionRow.post_id == 3,
+                PostExtractionRow.extractor == "llm",
+                PostExtractionRow.taxonomy_version == taxonomy.version,
+            )
+        )
+        assert healthy_result is not None
+        assert healthy_result.is_fallback is False
+
+
+def test_pending_extraction_rotates_fallback_retries(factory: sessionmaker[Session]) -> None:
+    taxonomy = load_taxonomy()
+    baseline = BaselineExtractor(taxonomy)
+    llm = LLMExtractor(taxonomy, _FailingClient())  # type: ignore[arg-type]
+    run_extract_pending(factory, taxonomy=taxonomy, baseline=baseline, llm=llm,
+                        limit=3, batch_size=3)
+    run_extract_pending(factory, taxonomy=taxonomy, baseline=baseline, llm=llm,
+                        limit=1, batch_size=1)
+    with factory() as session:
+        pending = select_pending_post_ids(
+            session, taxonomy_version=taxonomy.version, extractor="llm", limit=3
+        )
+    assert pending == [2, 3, 1]
+
+
 def test_extract_task_registered_with_bounded_retries() -> None:
     assert EXTRACT_PENDING_TASK in app.tasks
     task = worker_tasks.extract_pending

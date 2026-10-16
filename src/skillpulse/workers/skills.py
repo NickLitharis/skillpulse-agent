@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from skillpulse.db import session_scope
@@ -67,15 +67,27 @@ def select_pending_post_ids(
     extractor: str,
     limit: int,
 ) -> list[int]:
-    """Return the ids of up to ``limit`` posts still missing an extraction."""
+    """Select pending posts, prioritizing untouched LLM work over oldest retries."""
     condition = _pending_condition(extractor=extractor, taxonomy_version=taxonomy_version)
     stmt = (
         select(Post.id)
         .where(Post.is_deleted.is_(False), Post.is_dead.is_(False))
         .where(condition)  # type: ignore[arg-type]
-        .order_by(Post.id)
-        .limit(limit)
     )
+    if extractor == "llm":
+        # Fallback rows are replaced on every failed attempt. Their IDs order retries
+        # without timestamp ties; posts with no fallback for this taxonomy come first.
+        latest_fallback = (
+            select(func.max(PostExtractionRow.id))
+            .where(
+                PostExtractionRow.post_id == Post.id,
+                PostExtractionRow.taxonomy_version == taxonomy_version,
+                PostExtractionRow.is_fallback.is_(True),
+            )
+            .scalar_subquery()
+        )
+        stmt = stmt.order_by(latest_fallback.asc().nulls_first())
+    stmt = stmt.order_by(Post.id).limit(limit)
     return [int(post_id) for post_id in session.scalars(stmt)]
 
 
