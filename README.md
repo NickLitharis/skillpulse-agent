@@ -111,6 +111,31 @@ over SSE), `GET /v1/skills/top`, `/v1/skills/{id}/trend`, `/v1/coverage`, `/heal
 `503` rather than inventing an answer. Stats endpoints report the post count behind every
 share and withhold a share below 30 posts.
 
+## Docker (single host, no Kubernetes)
+
+```bash
+docker compose up -d --build              # Postgres, Redis, migration, API, MCP
+docker compose --profile workers up -d    # add the Celery workers and beat
+docker compose down                       # stop the stack
+```
+
+One image serves every workload, built from the same `Dockerfile` the chart deploys, so the
+container commands match the Kubernetes Deployments. `migrate` runs `alembic upgrade head`
+once and the API and MCP wait for it to succeed; every application container is non-root with
+a read-only root filesystem, no capabilities and no privilege escalation. Only `/tmp` is
+writable.
+
+The API is on `http://127.0.0.1:8000` and the MCP streamable-HTTP endpoint on
+`http://127.0.0.1:8765/mcp` (published on loopback only, because the endpoint has no
+authentication). Set `SKILLPULSE_API_PORT` or `SKILLPULSE_MCP_PORT` in `.env` if those host
+ports are busy. `.env` is read for provider keys, but compose sets the container URLs, so a
+`localhost` database URL in `.env` cannot leak into a container.
+
+The background workers are a compose profile rather than a default: they only do work once a
+gate is open, and three idle Celery processes are a real cost on a laptop. Nothing in the
+compose file opens a gate by itself. This path runs the app; `make check` and the CLI
+evaluations still run from the host.
+
 ## Kubernetes
 
 ```bash
@@ -173,6 +198,8 @@ config/               skills.yaml (336 skills, 13 categories), role_families.yam
 alembic/              migrations: 0001 ingestion, 0002 extraction/trends, 0003 read-only role
 eval/                 datasets (no post text), committed results, baseline_agent.json
 deploy/helm/          the Helm chart
+Dockerfile            one runtime image for every workload
+docker-compose.yml    single-host stack: Postgres, Redis, migration, API, MCP
 infra/                Terraform: namespace, CloudNativePG, Postgres, Redis, Helm release
 tests/                unit tests + Postgres/Redis testcontainers integration tests
 docs/                 decisions.md, terms.md, deployment.md
@@ -193,8 +220,8 @@ data. Live authorization is unresolved — see [docs/terms.md](docs/terms.md).
 
 ## Status
 
-Ingestion, extraction, trends, the agent, the MCP server, the Helm chart and CI are built
-and tested, and the real-model results above are committed. What remains is the last
+Ingestion, extraction, trends, the agent, the MCP server, the Helm chart, the Compose
+stack and CI are built and tested, and the real-model results above are committed. What remains is the last
 documentation trim ([SPEC §15](SPEC.md) R3) and the tagged `v1.0.0` release.
 
 ## Licence

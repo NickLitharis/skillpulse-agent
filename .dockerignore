@@ -34,6 +34,14 @@ tests/
 eval/
 alembic/versions/__pycache__/
 
+# Build inputs the runtime image never needs (the Dockerfile is not copied in).
+Dockerfile
+docker-compose.yml
+Makefile
+SPEC.md
+scripts/
+deploy/
+
 # OS / editor
 .DS_Store
 .idea/

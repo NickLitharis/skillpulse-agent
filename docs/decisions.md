@@ -266,3 +266,27 @@ so a reader can reproduce the number — or reproduce the failures. The timeout 
 rather than smoothed over: the run used 60 s while `.env.example` documented 20 s, and a 9-case
 spot check at the documented 20 s passed 9/9 with no timeout, so the documented default is not
 demonstrably wrong — but the committed numbers came from 60 s, and that is what the README says.
+
+## D012 — A Compose stack runs the same image without a cluster (2026-10-16)
+
+**Decision.** `docker-compose.yml` starts the whole application on one host: Postgres,
+Redis, a one-shot `alembic upgrade head`, the API and the MCP server, with the Celery workers
+and beat behind a `workers` profile. It runs the same image and the same container commands
+as the Helm chart, so the two paths cannot drift in what they execute, and the API and MCP
+wait on `service_completed_successfully` for the migration exactly as the chart's hook Job
+orders them. The dependency-only services (`postgres`, `redis`) keep the host ports
+(`5433`, `6379`) the rest of the developer workflow already uses.
+
+**Why.** Kubernetes stays the deployment that is probed, smoke-tested and documented
+(docs/deployment.md), but it needs k3d, kubectl, Helm and Terraform installed and running
+before the first request is served. A single `docker compose up -d --build` makes the project
+inspectable in one container runtime, which matters for a reader who wants to see the API and
+the MCP tools answer a question rather than read about them.
+
+**Consequences.** The workers are a profile, not a default: with every gate closed they do no
+work, and idle Celery processes are a real cost on a laptop. The compose file opens no gate by
+itself, so a containerised stack cannot start fetching Hacker News or calling a model that
+`.env` did not already allow. `.env` is read for provider keys only — compose sets the
+in-network URLs, which is what keeps a host-oriented `localhost:5433` value out of a
+container. The image stays a runtime image (`src/`, `alembic/`, `config/`), so `make check`
+and the CLI evaluations still run from the host.

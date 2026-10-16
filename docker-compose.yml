@@ -1,5 +1,43 @@
-# Quick local run without Kubernetes (spec section 12).
-# Postgres + Redis for the M2 Celery workers.
+# Local single-host stack (SPEC section 12): the same image and the same commands the
+# Helm chart runs, without a cluster.
+#
+#   docker compose up -d --build              Postgres, Redis, migrations, API, MCP
+#   docker compose --profile workers up -d    ...and the Celery workers and beat
+#   docker compose up -d postgres redis       dependencies only (make db-up / redis-up)
+#
+# This is a convenience path, not the evaluation path: `make check` and the CLI
+# evaluations run from the host, and the image ships only src/, alembic/ and config/.
+# Kubernetes remains the deployment that CI installs and smoke-tests
+# (docs/deployment.md).
+#
+# Nothing here opens a gate: live Hacker News access and the model calls stay off
+# unless .env turns them on.
+
+# Every application container runs the same image, hardened the way the chart hardens
+# the pods: non-root (baked into the image), read-only root filesystem, no capabilities,
+# no privilege escalation, and /tmp as the only writable path.
+x-app: &app
+  build: .
+  image: skillpulse:local
+  restart: unless-stopped
+  env_file:
+    # Provider keys and any other setting come from .env when it is present.
+    - path: .env
+      required: false
+  # .env targets the host (localhost:5433, localhost:6379). The containers reach the
+  # compose services by name, so these always win over whatever .env holds.
+  environment: &app-env
+    SKILLPULSE_DATABASE_URL: postgresql+psycopg2://skillpulse:skillpulse@postgres:5432/skillpulse
+    SKILLPULSE_REDIS_URL: redis://redis:6379/0
+    SKILLPULSE_LOG_LEVEL: ${SKILLPULSE_LOG_LEVEL:-INFO}
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,6 +64,137 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # One-shot `alembic upgrade head` with the owner role, exactly the command the Helm
+  # pre-install/pre-upgrade hook Job runs. Migration 0003 creates the read-only role the
+  # tools use; the API and MCP wait for this to succeed before they start.
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *app
+    command: ["uvicorn", "skillpulse.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      # Set SKILLPULSE_API_PORT in .env when 8000 is taken on the host.
+      - "${SKILLPULSE_API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=5)"
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 10s
+
+  mcp:
+    <<: *app
+    # The server refuses a non-loopback bind unless the opt-in below is set, and then
+    # answers only the Host and Origin values listed here: DNS-rebinding protection
+    # stays on (SPEC section 10).
+    command:
+      - skillpulse-mcp
+      - --transport
+      - streamable-http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8765"
+    environment:
+      <<: *app-env
+      SKILLPULSE_MCP_ALLOW_NON_LOOPBACK: "true"
+      SKILLPULSE_MCP_ALLOWED_HOSTS: '["localhost:*","127.0.0.1:*","mcp:*"]'
+      SKILLPULSE_MCP_ALLOWED_ORIGINS: '["http://localhost:*","http://127.0.0.1:*"]'
+    ports:
+      # Published on loopback only: the endpoint has no authentication.
+      - "127.0.0.1:${SKILLPULSE_MCP_PORT:-8765}:8765"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # The endpoint speaks MCP only, so probe the listener at TCP level (the chart
+      # does the same for its readiness probe).
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8765), timeout=5).close()"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  # The background loop is a profile rather than a default: it only does useful work once
+  # a gate is open, and four idle Celery processes are a lot to keep running on a laptop.
+  #   docker compose --profile workers up -d
+  worker-fetch:
+    <<: *app
+    profiles: ["workers"]
+    # Stays idle while SKILLPULSE_HN_LIVE_FETCH_ENABLED is false; the task refuses the
+    # network and says so (docs/decisions.md D006).
+    command:
+      - celery
+      - -A
+      - skillpulse.workers.app
+      - worker
+      - --loglevel=INFO
+      - -Q
+      - fetch
+      - --concurrency=1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker-skills:
+    <<: *app
+    profiles: ["workers"]
+    command:
+      - celery
+      - -A
+      - skillpulse.workers.app
+      - worker
+      - --loglevel=INFO
+      - -Q
+      - skills
+      - --concurrency=1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  beat:
+    <<: *app
+    profiles: ["workers"]
+    # Exactly one beat: two would schedule every task twice (SPEC section 12).
+    command:
+      - celery
+      - -A
+      - skillpulse.workers.app
+      - beat
+      - --loglevel=INFO
+      - --pidfile=/tmp/celerybeat.pid
+      - --schedule=/tmp/celerybeat-schedule
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
 volumes:
   skillpulse_pgdata:

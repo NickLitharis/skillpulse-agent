@@ -354,6 +354,19 @@ and credentials are never returned.
 `make up` = create the k3d cluster with a local registry → build and push images →
 `make secrets` → `terraform apply` → run the smoke test. `make down` deletes the cluster.
 
+### Compose (`docker-compose.yml`)
+- A single-host alternative to the cluster: the same image and the same container commands,
+  with Postgres, Redis, a one-shot `alembic upgrade head`, the API and the MCP server.
+- The Celery workers and beat sit behind the `workers` profile. They only do work once a
+  gate is open, so they are not part of a default `docker compose up`.
+- Application containers keep the chart's hardening: non-root, read-only root filesystem,
+  no capabilities, no privilege escalation, `/tmp` the only writable path.
+- Compose sets the in-network database and Redis URLs, so a host-oriented `.env`
+  (`localhost:5433`, `localhost:6379`) cannot leak into a container. It opens no gate.
+- It is not the evaluation path: the image ships `src/`, `alembic/` and `config/` only, and
+  `make check` and the CLI evaluations run from the host. Kubernetes stays the path CI
+  installs and smoke-tests.
+
 ## 13. CI (GitHub Actions)
 
 | Workflow | Trigger | Steps | Secrets |

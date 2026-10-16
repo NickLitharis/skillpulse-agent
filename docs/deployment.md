@@ -6,6 +6,24 @@ This deployment uses a disposable local Kubernetes cluster. It is not a producti
 It never enables live Hacker News access or real model calls.
 The smoke test inserts synthetic data. It does not measure model quality or historical coverage.
 
+## Docker Compose (no cluster)
+
+For a single-host run that needs no k3d, kubectl, Helm or Terraform:
+
+```bash
+cp .env.example .env                      # only if .env does not exist
+docker compose up -d --build              # Postgres, Redis, migration, API, MCP
+docker compose --profile workers up -d    # add the Celery workers and beat
+docker compose down
+```
+
+It runs the same image and the same container commands as the chart, and hardens the
+containers the same way: non-root, read-only root filesystem, no capabilities, no privilege
+escalation. The API is on `127.0.0.1:8000` (`SKILLPULSE_API_PORT` overrides it) and MCP on
+`127.0.0.1:8765/mcp` (`SKILLPULSE_MCP_PORT`), published on loopback only because neither
+endpoint authenticates. It opens no gate; `.env` decides. The Kubernetes path below is still
+the one CI installs and smoke-tests, and the requirements below are only for that path.
+
 ## Requirements
 
 Install Docker, Bash, k3d, kubectl, Helm 3, Terraform 1.x, OpenSSL, curl, jq, and Node.js with npx.
