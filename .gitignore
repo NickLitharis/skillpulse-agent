@@ -24,12 +24,7 @@ data/
 *.db
 *.log
 
-# Terraform (later milestones)
-infra/**/.terraform/
-infra/**/*.tfstate
-infra/**/*.tfstate.*
-
-# Eval outputs (later milestones)
+# Eval outputs
 eval/results/*
 !eval/results/.gitkeep
 # The latest committed summary is the only result that ships (SPEC section 15).
@@ -38,8 +33,12 @@ eval/results/*
 # results would need a provider credential and are not produced here.
 !eval/results/agent_fixture_fake.json
 # The canonical five-year-fixture fake-model contract run (model=fake, synthetic only,
-# not_real_acceptance); real-model S3/S4 results are never committed from CI.
+# not_real_acceptance). Real-model S3/S4 results are never produced in CI.
 !eval/results/agent_fixture_synthetic.json
+# The one real-provider run, produced locally on a paid key: the model is named inside the
+# file and the fixture carries no Hacker News text.
+!eval/results/llm_synthetic.json
+!eval/results/agent_fixture_real.json
 
 # OS / editor
 .DS_Store
