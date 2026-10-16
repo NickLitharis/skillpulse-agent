@@ -7,10 +7,13 @@ S3/S4 result.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
+from skillpulse.agent.models import FakeAgentModel, PlanResult
 from skillpulse.eval.agent_eval import load_agent_cases, run_agent_eval
 from skillpulse.eval.fixture import build_fixture_engine
-from skillpulse.extraction.taxonomy import REPO_ROOT, load_taxonomy
+from skillpulse.extraction.llm import LLMExtractionError
+from skillpulse.extraction.taxonomy import REPO_ROOT, Taxonomy, load_taxonomy
 
 DATASET = REPO_ROOT / "eval" / "datasets" / "agent_cases.json"
 
@@ -50,3 +53,53 @@ def test_agent_eval_on_fixture_is_correct_and_grounded() -> None:
 
 def test_dataset_path_exists() -> None:
     assert Path(DATASET).is_file()
+
+
+class ExplodingModel(FakeAgentModel):
+    """A planner that fails on one question, the way a flaky provider does."""
+
+    name = "fake-exploding"
+
+    def plan(
+        self, question: str, taxonomy: Taxonomy, tool_specs: tuple[dict[str, Any], ...]
+    ) -> PlanResult:
+        if "greek" in question.lower():
+            raise LLMExtractionError("provider returned an empty reply twice")
+        return super().plan(question, taxonomy, tool_specs)
+
+
+def test_one_failing_case_does_not_abort_the_run() -> None:
+    """A live 64-case run must not lose 63 results to one transient provider error."""
+    cases = load_agent_cases(DATASET)
+    taxonomy = load_taxonomy()
+
+    engine = build_fixture_engine()
+    try:
+        control = run_agent_eval(
+            engine,
+            taxonomy,
+            cases,
+            model_label="fake",
+            dataset=DATASET.name,
+            model=FakeAgentModel(),
+        )
+        exploded = run_agent_eval(
+            engine,
+            taxonomy,
+            cases,
+            model_label="fake-exploding",
+            dataset=DATASET.name,
+            model=ExplodingModel(),
+        )
+    finally:
+        engine.dispose()
+
+    # Every case is still recorded, and the injected failure costs exactly one case.
+    assert control.cases == exploded.cases == 9
+    assert len(exploded.results) == 9, "every case must still be recorded"
+    failed = [r for r in exploded.results if (r.error or "").startswith("case_error:")]
+    assert [r.id for r in failed] == ["impossible-greek"]
+    assert failed[0].correct is False
+    assert exploded.correct == control.correct - 1
+    # A case with no answer is excluded from grounding, exactly like a tool failure.
+    assert exploded.grounding_rate == 1.0

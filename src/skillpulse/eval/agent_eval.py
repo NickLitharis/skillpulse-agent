@@ -16,6 +16,7 @@ Two datasets are supported:
 from __future__ import annotations
 
 import json
+import logging
 import math
 import time
 from dataclasses import asdict, dataclass, field
@@ -29,6 +30,8 @@ from skillpulse.agent.graph import AgentRun, run_agent
 from skillpulse.agent.models import AgentModel, DraftResult, FakeAgentModel
 from skillpulse.extraction.taxonomy import Taxonomy
 from skillpulse.tools import ToolResult, ToolRuntime
+
+logger = logging.getLogger(__name__)
 
 
 class InventingAgentModel(FakeAgentModel):
@@ -325,13 +328,37 @@ def run_agent_eval(
         )
         cancel_check = (lambda: True) if case.simulate == "cancel" else None
         started = time.perf_counter()
-        run = run_agent(
-            case.question,
-            runtime=runtime,
-            model=model if model is not None else _case_model(case),
-            taxonomy=taxonomy,
-            cancel_check=cancel_check,
-        )
+        try:
+            run = run_agent(
+                case.question,
+                runtime=runtime,
+                model=model if model is not None else _case_model(case),
+                taxonomy=taxonomy,
+                cancel_check=cancel_check,
+            )
+        except Exception as exc:
+            # A live model can fail on one question: a provider error, or an empty reply
+            # that survives the retry. Record the case as incorrect and keep going. A
+            # 64-case run must not lose 63 results to one transient failure.
+            latency_ms = round((time.perf_counter() - started) * 1000, 3)
+            latencies.append(latency_ms)
+            logger.warning("agent case %s raised %s: %s", case.id, type(exc).__name__, exc)
+            facts_checked += len(case.expected_facts)
+            results.append(
+                AgentCaseResult(
+                    id=case.id,
+                    question=case.question,
+                    category=case.category,
+                    correct=False,
+                    grounded=False,
+                    expected_tools=list(case.expected_tools),
+                    error=f"case_error:{type(exc).__name__}",
+                    facts_checked=len(case.expected_facts),
+                    fact_failures=[f"{case.id}: raised {type(exc).__name__}"],
+                    latency_ms=latency_ms,
+                )
+            )
+            continue
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
         latencies.append(latency_ms)
         _, failures = (
