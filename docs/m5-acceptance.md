@@ -1,4 +1,4 @@
-# M5 acceptance evidence (2026-10-15 UTC)
+# M5 acceptance evidence (updated 2026-10-16 UTC)
 
 Scope: the MCP server that exposes the **same five M4 read-only tools** over **stdio**
 and **streamable HTTP**, with real protocol/client integration tests and a real MCP
@@ -7,7 +7,8 @@ Inspector CLI roundtrip.
 This round did **not** fetch Hacker News, did **not** call a remote LLM or agent model
 and did **not** send any stored post text anywhere. Every protocol test runs against the
 deterministic SQLite fixture DB (no post text) or a temporary local Postgres-free
-session. The GUI (web) Inspector and Claude Desktop were **not** launched; see
+session. The initial 2026-10-15 check used the Inspector CLI only. The browser GUI was
+verified on 2026-10-16 as described below; Claude Desktop remains untested. See
 [Blocked gates](#blocked-gates-not-claimed).
 
 ## Delivered and verified
@@ -35,7 +36,7 @@ session. The GUI (web) Inspector and Claude Desktop were **not** launched; see
 .venv/Scripts/python.exe -m skillpulse.mcp_server --transport streamable-http --port 8765
 ```
 
-## Tests and results
+## Initial tests and results (2026-10-15)
 
 | Check | Command | Result |
 | --- | --- | --- |
@@ -55,14 +56,29 @@ Saved Inspector evidence (bounded): `docs/evidence/m5-inspector-version.txt`,
 the exact shared tool payload (`result_id`, `extractor`, `taxonomy_version`,
 `denominator_definition`, `coverage_caveat`, `sample_floor=30`).
 
+## Browser Inspector and GIF (2026-10-16)
+
+The real MCP Inspector **2.11.0** browser UI connected over stdio to
+`skillpulse-mcp --fixture`. It listed all five tools and executed `skill_counts`.
+The rendered structured result contains eight rows with **480 eligible fixture posts**.
+No HN access, model call, private post text or Desktop configuration was involved.
+
+The [README demo](../README.md#inspector-demo-synthetic-data) embeds the actual recording
+at [assets/inspector-demo.gif](assets/inspector-demo.gif), not a mockup. The GIF was decoded
+successfully: 103 frames, 48 distinct frame hashes. A screenshot was independently reviewed
+for unintended private content. The browser session and owned Inspector process tree were
+closed; the two temporary loopback listeners were removed.
+
+This closes the Inspector GUI and demo-asset gaps, not the separate Desktop or hosting gaps.
+Latest full regression: **182 passed, 5 opt-in skipped**, including 19 Docker integration tests.
+PR code revision `956f597` also passed real GitHub CI and the hosted deployment check.
+
 ## Blocked gates (not claimed)
 
 | Gate | Status | Why / what would close it |
 | --- | --- | --- |
 | Claude Desktop end-to-end (S8 "works in Claude Desktop") | **BLOCKED — not validated** | Validating it needs the Claude Desktop GUI and an edit to the **global** client config. This round did not touch global config and did not claim GUI validation. A ready config is at `docs/claude-desktop-mcp.example.json`; the manual check is below. |
-| Web (GUI) MCP Inspector | **not run** | The GUI needs a browser and a long-lived process; only the scriptable **CLI** was used, which is the part that can be pinned and evidenced. |
-| Demo GIF | **BLOCKED — not produced** | SPEC M7 owns the GIF; producing one needs the GUI. No GIF is shipped and none is faked. |
-| Hosted / public MCP endpoint | **not deployed** | Needs M6 (Helm/Terraform/k3d). The HTTP transport was validated on loopback only. |
+| Hosted / public MCP endpoint | **not deployed** | Local M6 Kubernetes HTTP smoke is verified; no public/TLS endpoint is claimed. |
 
 ### Manual check for the blocked Claude Desktop gate
 
@@ -84,5 +100,6 @@ Desktop installed.
   and the LLM/agent/provider gates stay off (D006 and the M3/M4 gates).
 - The HTTP transport is validated on **loopback**; no reverse proxy, TLS or public bind
   was configured and none is claimed.
-- The read-only database role's login/password is an operator step outside this repo
-  (migration `0003` creates the `NOLOGIN` role; no credential is committed).
+- M6 now manages separate API/MCP login/password Secrets through CloudNativePG and grants
+  read-only membership after migration `0003` creates the `NOLOGIN` group. No credential
+  is committed. See the [deployment runbook](deployment.md).

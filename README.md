@@ -20,7 +20,10 @@ A real local Langfuse ingestion/read-back check is also verified; run
 Deployment CI enforces S1's startup deadline and saves timing/smoke evidence when run remotely.
 Run `pwsh -NoProfile -File scripts/acceptance-preflight.ps1` for offline prerequisite checks;
 see [the remaining acceptance gates](docs/remaining-acceptance.md). These changes do not
-establish real-model quality, real-HN coverage, Claude Desktop acceptance, or remote CI success.
+establish real-model quality, real-HN coverage, Claude Desktop acceptance, or production readiness.
+[PR #1](https://github.com/NickLitharis/skillpulse-agent/pull/1) has verified CI and deployment
+checks on code revision `956f597`; the fresh hosted deployment and smoke took **171 seconds**.
+This is PR evidence, not a green `main` deployment or a release.
 
 Milestone **M5 — MCP server (stdio + HTTP)** (partial):
 
@@ -37,11 +40,13 @@ Milestone **M5 — MCP server (stdio + HTTP)** (partial):
   `SKILLPULSE_MCP_ALLOW_NON_LOOPBACK=true`; stdio keeps stdout protocol-only and logs to
   stderr,
 - real SDK protocol tests cover stdio and an HTTP subprocess, plus a real MCP Inspector
-  CLI roundtrip (`@modelcontextprotocol/inspector@2.11.0`).
+  CLI roundtrip (`@modelcontextprotocol/inspector@2.11.0`),
+- the browser-based Inspector also connects and runs `skill_counts` against the synthetic
+  fixture; the recorded demo is below.
 
-**M5 is partial, not complete.** "Works in Claude Desktop" (S8) is **blocked**: it needs
-the Desktop GUI and a global client-config edit, which this round did not perform. A
-ready example config and the manual check are in
+**M5 is partial, not complete.** The original S8 also names Claude Desktop, which remains
+untested. No Desktop configuration was changed. Claude is an optional MCP client, not an
+application dependency. A ready example config and the manual check are in
 [docs/m5-acceptance.md](docs/m5-acceptance.md).
 
 Milestone **M4 — tools, LangGraph agent, `/v1/ask`, fixture DB and agent eval** (partial):
@@ -180,6 +185,18 @@ Use a read-only login in its database URL. Local Kubernetes deployment supplies 
 Desktop config is at [docs/claude-desktop-mcp.example.json](docs/claude-desktop-mcp.example.json);
 the transport, security and blocked-gate details are in
 [docs/m5-acceptance.md](docs/m5-acceptance.md).
+
+### Inspector demo (synthetic data)
+
+MCP Inspector **2.11.0** connects over stdio to `skillpulse-mcp --fixture`, lists all
+five tools, and runs `skill_counts`. The result contains eight rows with 480 eligible
+fixture posts. These are synthetic counts, not measured Hacker News coverage.
+No HN access, model call or Desktop configuration is involved.
+
+![MCP Inspector runs skill_counts on the synthetic SkillPulse fixture](docs/assets/inspector-demo.gif)
+
+The GIF records the actual browser UI and tool result. It is not a mockup or evidence
+of Claude Desktop, hosted model quality or a production deployment.
 
 ## Layout
 

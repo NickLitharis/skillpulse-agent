@@ -193,11 +193,16 @@ It runs for pull requests and pushes to `main`. A hard 20-minute deployment-step
 an outcome-aware check enforce S1's strict less-than-1200s budget. The job uploads revision,
 timing, deployment outcome and smoke logs as `deploy-check-evidence`; a quick failed deploy
 cannot pass the budget check. Five deterministic policy cases and an inclusive-boundary negative
-control were checked locally. Local success does not prove that remote CI passed.
+control were checked locally. PR code revision `956f597` then passed real GitHub CI and
+[deployment run 38872397352](https://github.com/NickLitharis/skillpulse-agent/actions/runs/38872397352).
+Its downloaded artifact records successful deployment/smoke in **171 seconds** on a fresh hosted runner
+and tested PR merge revision `ffa0f72e99c1ed01c18a946a16c6f9b8dd3c9017`. This is not a `main` run.
 `release.yml` validates `v*` tags, runs Ruff/mypy/unit tests, packages the chart, and publishes images to GHCR.
-Do not create a tag or push without approval. No release or remote publication was performed for this work.
+Do not create a tag or push without approval. The approved feature branch and PR #1 were published;
+no merge, release tag or GHCR image publication occurred.
 
-Real-HN authorization, historical backfill, real-model quality thresholds, Claude Desktop GUI evidence,
-a demo GIF, remote CI/release and any hosted-endpoint tracing verification remain separate gates.
+The [real Inspector browser demo](../README.md#inspector-demo-synthetic-data) uses synthetic fixture data.
+Real-HN authorization, historical backfill, real-model quality thresholds, original Claude Desktop evidence,
+green `main`, release publication and hosted-endpoint tracing remain separate gates.
 A possible CV line, after deployment review: “Built a read-only MCP job-trends agent with Kubernetes deployment and privacy-safe telemetry.”
 Do not attach unmeasured accuracy or production-use claims to it.

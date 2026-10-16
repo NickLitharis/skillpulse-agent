@@ -196,3 +196,32 @@ tests; Ruff passes for `src`, `tests` and the changed Alembic environment, and s
 wrapper. These fixes add one previously unchanged path (`alembic/env.py`), for a total publication
 scope of 55 paths. The corrected revision still needs a fresh remote CI run before a green claim.
 Main deployment, original Desktop acceptance and release publication are still separate gates.
+
+## Corrected PR green; genuine Inspector browser demo
+
+Code revision `956f597` passed the actual [CI run 38872397299](https://github.com/NickLitharis/skillpulse-agent/actions/runs/38872397299):
+163 non-integration tests, 5 opt-in skips, all 19 Docker integration tests, strict mypy (47 files),
+Ruff and the 14-assertion preflight. The corrected [deployment run 38872397352](https://github.com/NickLitharis/skillpulse-agent/actions/runs/38872397352)
+also passed. Downloaded evidence records **171 seconds** on a fresh hosted runner, successful
+smoke, and tested PR merge revision `ffa0f72e99c1ed01c18a946a16c6f9b8dd3c9017`.
+Both runs completed successfully; PR #1 was open, mergeable and clean, not merged.
+
+The real browser MCP Inspector 2.11.0 then connected over stdio to the deterministic
+`skillpulse-mcp --fixture` server. All five tools appeared. Executing `skill_counts` rendered
+eight structured rows and the expected 480-post eligible fixture denominator. All HN/model/
+Langfuse gates stayed false in this isolated server configuration. No existing database,
+provider credentials or Desktop settings were changed.
+
+`docs/assets/inspector-demo.gif` is the actual browser recording of the form, invocation and
+result, not a mockup. It is 1,344,755 bytes; decoding verifies 103 frames with 48 distinct
+frame hashes. SHA256: `3EFFCF860F75DD94747C94D6FD41E631A0F6B6AAD36F3EC4F58869E3A7E83D7D`.
+A separately captured result screenshot was visually reviewed: no credentials, private prompt,
+CV, post text or personal browser content. README labels the data synthetic and limits the claim.
+The owned browser session and Inspector process tree were stopped; neither temporary loopback
+listener remains. Operational logs/recordings remain in the user-local temporary evidence folder.
+
+Updated README, the deployment runbook, M5 acceptance and milestone/remaining-gate records to distinguish completed
+Inspector GUI/demo evidence from original Desktop, hosted, real-data and release acceptance.
+This adds the existing M5 record and one GIF to the reviewed scope, for 57 total paths from the
+base commit. No application code changed after the green corrected CI revision. The documentation
+and demo commit will still receive its own PR checks. No merge, tag or image publication occurred.
