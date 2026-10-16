@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from skillpulse.eval.extraction_eval import (
     LabeledPost,
     load_dataset,
     run_baseline_eval,
+    run_llm_eval,
     score,
 )
+from skillpulse.extraction.llm import LLMExtractor
 from skillpulse.extraction.schema import PostExtraction, SkillMatch
 from skillpulse.extraction.taxonomy import REPO_ROOT, load_taxonomy
 
@@ -35,6 +38,32 @@ def test_baseline_f1_on_the_synthetic_set() -> None:
     assert report.unknown_term_rate == 0.0
     assert report.posts == 40
     assert report.false_positives or report.false_negatives  # not artificially perfect
+
+
+class FixedClient:
+    """Provider double: always the same valid extraction."""
+
+    def complete_json(self, *, system: str, prompt: str) -> str:
+        return json.dumps(
+            {
+                "company": "Acme",
+                "role_family": "backend",
+                "seniority": None,
+                "remote": True,
+                "countries": ["US"],
+                "skills": [{"id": "python", "required": True}],
+            }
+        )
+
+
+def test_llm_eval_scores_a_built_extractor() -> None:
+    taxonomy = load_taxonomy()
+    labeled = [LabeledPost(id="a", text="python role", skills={"python": True})]
+    extractor = LLMExtractor(taxonomy, FixedClient())
+    report = run_llm_eval(labeled, extractor, dataset="unit")
+    assert report.extractor == "llm"
+    assert report.posts == 1
+    assert report.micro_f1 == 1.0
 
 
 def test_micro_and_macro_scoring_maths() -> None:

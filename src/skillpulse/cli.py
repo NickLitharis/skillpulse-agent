@@ -9,8 +9,10 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import redis
 from sqlalchemy import select
 
+from skillpulse.agent.models import AgentModel, build_agent_model
 from skillpulse.config import get_settings
 from skillpulse.db import session_scope
 from skillpulse.eval.agent_dataset import (
@@ -20,10 +22,12 @@ from skillpulse.eval.agent_dataset import (
     write_agent_dataset,
 )
 from skillpulse.eval.agent_eval import load_agent_dataset, run_agent_eval
-from skillpulse.eval.extraction_eval import load_dataset, run_baseline_eval
+from skillpulse.eval.extraction_eval import load_dataset, run_baseline_eval, run_llm_eval
 from skillpulse.eval.fixture import build_fixture_engine
 from skillpulse.eval.synthetic_fixture import build_synthetic_fixture_engine
 from skillpulse.extraction.baseline import BaselineExtractor
+from skillpulse.extraction.llm import LLMUnavailableError
+from skillpulse.extraction.providers import build_extractor
 from skillpulse.extraction.repository import sync_taxonomy
 from skillpulse.extraction.service import extract_post
 from skillpulse.extraction.taxonomy import REPO_ROOT, load_taxonomy
@@ -110,20 +114,50 @@ def cmd_extract(args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_extraction_out(extractor: str) -> Path:
+    """Derive the results path, so an LLM run cannot overwrite the baseline file."""
+    return REPO_ROOT / "eval" / "results" / f"{extractor}_synthetic.json"
+
+
 def cmd_eval_extraction(args: argparse.Namespace) -> int:
-    """Score the baseline on a labelled set and write a results JSON."""
+    """Score one extractor on a labelled set and write a results JSON."""
+    settings = get_settings()
     taxonomy = load_taxonomy()
     dataset_path = Path(args.dataset)
     labeled = load_dataset(dataset_path)
-    report = run_baseline_eval(taxonomy, labeled, dataset=dataset_path.name)
+    model = ""
+    if args.extractor == "llm":
+        try:
+            # The same builder the workers use, so the provider gate and the shared
+            # Redis token budget apply to an evaluation run too.
+            extractor = build_extractor(
+                taxonomy,
+                redis_client=redis.Redis.from_url(settings.redis_url),
+                settings=settings,
+            )
+        except LLMUnavailableError as exc:
+            print(f"LLM extractor unavailable: {exc}", file=sys.stderr)
+            return 2
+        if extractor is None:
+            print(
+                "SKILLPULSE_LLM_ENABLED is false, so there is no LLM extractor to score; "
+                "use --extractor baseline or configure the provider",
+                file=sys.stderr,
+            )
+            return 2
+        report = run_llm_eval(labeled, extractor, dataset=dataset_path.name)
+        model = settings.llm_model
+    else:
+        report = run_baseline_eval(taxonomy, labeled, dataset=dataset_path.name)
     payload = {
         "extractor": report.extractor,
         "dataset": report.dataset,
         "source": args.source,
+        "model": model,
         "gate": args.gate,
         "report": report.to_json(),
     }
-    out_path = Path(args.out)
+    out_path = Path(args.out) if args.out else _default_extraction_out(report.extractor)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
@@ -134,11 +168,35 @@ def cmd_eval_extraction(args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_agent_out(model_label: str) -> Path:
+    """Derive the results path, so a real run cannot overwrite the fake baseline file."""
+    suffix = "fake" if model_label == "fake" else "real"
+    return REPO_ROOT / "eval" / "results" / f"agent_fixture_{suffix}.json"
+
+
 def cmd_eval_agent(args: argparse.Namespace) -> int:
     """Score the agent on a frozen fixture database and write a results JSON."""
+    settings = get_settings()
     taxonomy = load_taxonomy()
     dataset_path = Path(args.dataset)
     cases, fixture = load_agent_dataset(dataset_path)
+    model_label = args.model
+    model: AgentModel | None = None
+    if args.real_model:
+        try:
+            model = build_agent_model(
+                settings, redis_client=redis.Redis.from_url(settings.redis_url)
+            )
+        except LLMUnavailableError as exc:
+            print(f"agent model unavailable: {exc}", file=sys.stderr)
+            return 2
+        if model is None:
+            print(
+                "SKILLPULSE_AGENT_LLM_ENABLED is false, so there is no real model to run",
+                file=sys.stderr,
+            )
+            return 2
+        model_label = settings.agent_llm_model
     if args.fixture_profile == "synthetic":
         engine = build_synthetic_fixture_engine()
     else:
@@ -148,14 +206,18 @@ def cmd_eval_agent(args: argparse.Namespace) -> int:
             engine,
             taxonomy,
             cases,
-            model_label=args.model,
+            model_label=model_label,
             dataset=dataset_path.name,
             source=args.source,
             fixture=fixture,
+            model=model,
         )
     finally:
         engine.dispose()
-    acceptance = "not_real_acceptance" if args.model == "fake" else "unverified"
+    if model is None:
+        acceptance = "not_real_acceptance" if model_label == "fake" else "unverified"
+    else:
+        acceptance = "real_model_run"
     payload = {
         "model": report.model,
         "dataset": report.dataset,
@@ -176,7 +238,7 @@ def cmd_eval_agent(args: argparse.Namespace) -> int:
         "gate": args.gate,
         "report": report.to_json(),
     }
-    out_path = Path(args.out)
+    out_path = Path(args.out) if args.out else _default_agent_out(model_label)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
@@ -239,9 +301,10 @@ def build_parser() -> argparse.ArgumentParser:
     eval_extraction.add_argument(
         "--dataset", default=str(REPO_ROOT / "eval" / "datasets" / "synthetic_extraction.json")
     )
-    eval_extraction.add_argument(
-        "--out", default=str(REPO_ROOT / "eval" / "results" / "baseline_synthetic.json")
-    )
+    eval_extraction.add_argument("--extractor", choices=["baseline", "llm"], default="baseline")
+    # No default output path: it is derived from the extractor, so an LLM run cannot
+    # overwrite the committed baseline result.
+    eval_extraction.add_argument("--out", default=None)
     eval_extraction.add_argument("--source", default="synthetic")
     eval_extraction.add_argument(
         "--gate",
@@ -254,9 +317,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--dataset", default=str(REPO_ROOT / "eval" / "datasets" / "agent_cases.json")
     )
     eval_agent.add_argument(
-        "--out", default=str(REPO_ROOT / "eval" / "results" / "agent_fixture_fake.json")
+        "--out",
+        default=None,
+        help="defaults to eval/results/agent_fixture_<fake|real>.json",
     )
     eval_agent.add_argument("--model", default="fake")
+    eval_agent.add_argument(
+        "--real-model",
+        action="store_true",
+        help="use the configured provider model instead of the deterministic fake",
+    )
     eval_agent.add_argument("--source", default="fixture")
     eval_agent.add_argument(
         "--fixture-profile", choices=["tiny", "synthetic"], default="tiny"

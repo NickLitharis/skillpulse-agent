@@ -17,9 +17,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from skillpulse.extraction.baseline import BaselineExtractor
+from skillpulse.extraction.llm import LLMExtractor
 from skillpulse.extraction.schema import PostExtraction
 from skillpulse.extraction.taxonomy import Taxonomy
 
@@ -165,15 +166,13 @@ def run_baseline_eval(
 
 
 def run_llm_eval(
-    taxonomy: Taxonomy, labeled: list[LabeledPost], client: object, *, dataset: str
+    labeled: list[LabeledPost], extractor: LLMExtractor, *, dataset: str
 ) -> EvalReport:
-    """Run an LLM client over a labelled set and score it.
+    """Run a built LLM extractor over a labelled set and score it.
 
-    Callers must record whether ``client`` is a fake (contract test) or a real provider;
-    the runner does not pretend a fake result is a real F1.
+    The caller builds the extractor with ``build_extractor``, so the provider gate and
+    the shared Redis token budget apply exactly as they do for the workers. This runner
+    never builds a client itself, so it cannot quietly skip the cost guard.
     """
-    from skillpulse.extraction.llm import LLMExtractor, StructuredLLMClient
-
-    extractor = LLMExtractor(taxonomy, cast(StructuredLLMClient, client))
     predictions = {post.id: extractor.extract(post.text) for post in labeled}
     return score(predictions, labeled, extractor="llm", dataset=dataset)

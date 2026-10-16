@@ -302,8 +302,15 @@ def run_agent_eval(
     dataset: str,
     source: str = "fixture",
     fixture: dict[str, Any] | None = None,
+    model: AgentModel | None = None,
 ) -> AgentEvalReport:
-    """Run every case against the fixture database and score the outcomes."""
+    """Run every case against the fixture database and score the outcomes.
+
+    ``model`` runs the real agent model (``build_agent_model``). When it is omitted the
+    deterministic fake model is used per case, which is what CI does. A real model cannot
+    be told to invent a number, so the adversarial "invents" cases are scored as they
+    come back rather than through :class:`InventingAgentModel`.
+    """
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     results: list[AgentCaseResult] = []
     correct = 0
@@ -321,7 +328,7 @@ def run_agent_eval(
         run = run_agent(
             case.question,
             runtime=runtime,
-            model=_case_model(case),
+            model=model if model is not None else _case_model(case),
             taxonomy=taxonomy,
             cancel_check=cancel_check,
         )

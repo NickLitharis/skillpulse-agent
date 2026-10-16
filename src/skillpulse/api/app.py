@@ -19,6 +19,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from datetime import date
 from typing import Any
 
+import redis
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -77,7 +78,15 @@ def create_app(
     settings = settings or get_settings()
     factory = session_factory or build_session_factory()
     tax = taxonomy or load_taxonomy()
-    model = agent_model if agent_model is not None else build_agent_model(settings)
+    # The real agent model needs the shared Redis token budget, so wire the client here.
+    # With the gate closed build_agent_model returns None before it touches Redis.
+    model = (
+        agent_model
+        if agent_model is not None
+        else build_agent_model(
+            settings, redis_client=redis.Redis.from_url(settings.redis_url)
+        )
+    )
     runtime = ToolRuntime(
         factory,
         tax,
