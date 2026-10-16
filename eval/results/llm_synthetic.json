@@ -1,0 +1,37 @@
+{
+  "extractor": "llm",
+  "dataset": "synthetic_extraction.json",
+  "source": "synthetic",
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "gate": "real HN post text and a real LLM provider are gated (docs/terms.md, D006)",
+  "report": {
+    "extractor": "llm",
+    "dataset": "synthetic_extraction.json",
+    "posts": 40,
+    "micro_precision": 0.9524,
+    "micro_recall": 0.9581,
+    "micro_f1": 0.9552,
+    "macro_f1": 0.9442,
+    "required_accuracy": 0.925,
+    "unknown_term_rate": 0.006,
+    "false_positives": [
+      "s03:docker",
+      "s05:kubernetes",
+      "s10:kafka",
+      "s15:ios",
+      "s17:kubernetes",
+      "s22:rust",
+      "s23:aspnet",
+      "s36:java"
+    ],
+    "false_negatives": [
+      "s01:postgres",
+      "s11:machine-learning",
+      "s16:ios",
+      "s18:docker",
+      "s32:aws",
+      "s32:aws-eks",
+      "s38:machine-learning"
+    ]
+  }
+}

@@ -18,8 +18,8 @@ Five read-only tools, shared by the agent and the MCP server: `search_jobs`,
 |------|---------|--------|
 | Baseline extraction (alias matcher) | 40 synthetic posts | micro-F1 0.991, macro-F1 0.9783 |
 | LLM extraction (S2) | same 40 posts | micro-F1 **0.9552**, macro-F1 0.9442, required-accuracy 0.925, unknown-rate 0.006 — `nvidia/nemotron-3-super-120b-a12b` |
-| Agent answers (S3, correctness) | 64 questions, 222 facts | pending — see [SPEC §16 R1](SPEC.md) |
-| Agent grounding (S4) | same | pending — see [SPEC §16 R1](SPEC.md) |
+| Agent answers (S3, correctness) | 64 questions, 222 facts | pending — see [SPEC §15 R1](SPEC.md) |
+| Agent grounding (S4) | same | pending — see [SPEC §15 R1](SPEC.md) |
 
 Both real-model rows use `nvidia/nemotron-3-super-120b-a12b` over an OpenAI-compatible
 NVIDIA NIM endpoint, chosen by screening the key's live catalogue rather than by
@@ -137,7 +137,10 @@ uv run skillpulse eval agent --real-model \
   --fixture-profile synthetic --source synthetic_fixture
 ```
 
-A real run needs a provider, so CI uses the fake model. The agent set and the five-year
+A real run needs a provider, so CI uses the fake model. The committed results use
+`SKILLPULSE_LLM_BASE_URL=https://integrate.api.nvidia.com/v1` with
+`SKILLPULSE_LLM_MODEL=nvidia/nemotron-3-super-120b-a12b`, and the key in
+`SKILLPULSE_LLM_API_KEY` / `SKILLPULSE_AGENT_LLM_API_KEY`. The agent set and the five-year
 fixture are committed and hold no post text, so a reader can reproduce any number. The
 agent must not quote a share based on fewer than 30 posts, and expected facts are computed
 by SQL over the raw fixture tables, not by the tools under test.
