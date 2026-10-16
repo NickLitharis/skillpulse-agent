@@ -1,0 +1,75 @@
+{{- /* worker-fetch and worker-skills: same image, different Celery queue (M6). */ -}}
+{{- $workers := list (dict "name" "worker-fetch" "component" "worker-fetch" "queue" .Values.workerFetch.queue "replicas" .Values.workerFetch.replicas "concurrency" .Values.workerFetch.concurrency "resources" .Values.workerFetch.resources) (dict "name" "worker-skills" "component" "worker-skills" "queue" .Values.workerSkills.queue "replicas" .Values.workerSkills.replicas "concurrency" .Values.workerSkills.concurrency "resources" .Values.workerSkills.resources) -}}
+{{- range $w := $workers }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skillpulse-{{ $w.name }}
+  labels:
+    {{- include "skillpulse.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $w.component }}
+spec:
+  {{- if and (eq $w.name "worker-skills") $.Values.workerSkills.hpa.enabled }}
+  {{- /* The HPA owns the replica count; Helm must not fight it. */}}
+  {{- else }}
+  replicas: {{ $w.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "skillpulse.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $w.component }}
+  template:
+    metadata:
+      labels:
+        {{- include "skillpulse.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ $w.component }}
+    spec:
+      {{- include "skillpulse.podSecurityContext" $ | nindent 6 }}
+      containers:
+        - name: worker
+          {{- include "skillpulse.image" $ | nindent 10 }}
+          command:
+            - celery
+            - -A
+            - skillpulse.workers.app
+            - worker
+            - --loglevel=INFO
+            - -Q
+            - {{ $w.queue }}
+            - --concurrency={{ $w.concurrency }}
+          securityContext:
+            {{- include "skillpulse.containerSecurityContext" $ | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ $.Values.appSecret }}
+          env:
+            {{- include "skillpulse.commonEnv" $ | nindent 12 }}
+          # A worker is not ready until its own node responds through Redis.
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - celery -A skillpulse.workers.app inspect ping -d celery@$HOSTNAME --timeout=3
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 30
+          # Allow time for both CLI startup and the broker roundtrip.
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - celery -A skillpulse.workers.app inspect ping -d celery@$HOSTNAME --timeout=10
+            initialDelaySeconds: 15
+            timeoutSeconds: 15
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            {{- toYaml $w.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "skillpulse.tmpVolumeMount" $ | nindent 12 }}
+      volumes:
+        {{- include "skillpulse.tmpVolume" $ | nindent 8 }}
+{{- end }}

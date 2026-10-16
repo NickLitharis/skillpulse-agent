@@ -1,0 +1,28 @@
+{{- if .Values.workerSkills.hpa.enabled }}
+{{/*
+SPEC section 12: HPA on worker-skills by CPU (queue length would be the better
+signal, noted as later work). The Deployment's replica count must not be managed by
+Helm while the HPA owns it, so the worker template honours hpa.enabled.
+*/}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: skillpulse-worker-skills
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-skills
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: skillpulse-worker-skills
+  minReplicas: {{ .Values.workerSkills.hpa.minReplicas }}
+  maxReplicas: {{ .Values.workerSkills.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.workerSkills.hpa.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -1,0 +1,42 @@
+# Local k3d values (SPEC section 12). Usage:
+#   helm upgrade --install skillpulse deploy/helm/skillpulse -f deploy/helm/skillpulse/values-local.yaml
+# The Terraform release does this for you (make up).
+image:
+  tag: dev
+  pullPolicy: Always
+
+api:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+mcp:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+workerFetch:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+workerSkills:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+  hpa:
+    enabled: false  # k3d is single-node; the HPA needs metrics-server headroom
+
+beat:
+  resources:
+    requests: { cpu: 25m, memory: 96Mi }
+    limits: { cpu: 250m, memory: 192Mi }
+
+migrate:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }

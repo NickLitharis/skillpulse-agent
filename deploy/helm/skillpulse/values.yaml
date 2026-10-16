@@ -1,0 +1,92 @@
+# Default values for the skillpulse chart (SPEC section 12).
+# Environment overrides live in values-local.yaml and values-ci.yaml.
+
+image:
+  # The k3d cluster pulls from its embedded registry; k3d names the registry
+  # container k3d-<name>, reachable from inside the cluster as k3d-<name>:5000.
+  repository: k3d-skillpulse-registry:5000/skillpulse
+  tag: dev
+  pullPolicy: IfNotPresent
+
+# Both the app env and the CNPG owner credentials come from Secrets created by
+# `make secrets` (kubectl), never by Terraform or Helm - SPEC section 12.
+appSecret: skillpulse
+apiSecret: skillpulse-api
+mcpSecret: skillpulse-mcp
+dbOwnerSecret: skillpulse-db-owner
+
+logLevel: INFO
+
+api:
+  replicas: 1
+  port: 8000
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+mcp:
+  replicas: 1
+  port: 8765
+  # The server refuses a non-loopback bind unless the env opt-in below is set, and
+  # then only answers Host values in this list (exact or "<host>:*" prefix).
+  # "skillpulse-mcp:*" is the in-cluster Service; the loopback entries keep
+  # `kubectl port-forward` working for the smoke test and local clients.
+  allowedHosts: '["skillpulse-mcp:*","skillpulse-mcp.skillpulse.svc:*","localhost:*","127.0.0.1:*"]'
+  allowedOrigins: '["http://skillpulse-mcp:*","http://localhost:*","http://127.0.0.1:*"]'
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+workerFetch:
+  replicas: 1
+  queue: fetch
+  concurrency: 1
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+workerSkills:
+  replicas: 1
+  queue: skills
+  concurrency: 1
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  # SPEC section 12: HPA by CPU on worker-skills (queue length would be better,
+  # noted as later work).
+  hpa:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+# SPEC section 12: beat must stay at exactly 1 replica with a Recreate strategy -
+# two beats, even briefly during a rollout, would schedule every task twice.
+beat:
+  resources:
+    requests: { cpu: 25m, memory: 96Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+# pre-install,pre-upgrade hook Job: alembic upgrade head with the owner role before
+# new pods start (the tools' read-only role is created by migration 0003).
+migrate:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+  backoffLimit: 4
+  activeDeadlineSeconds: 600
+
+# Only api/mcp/workers/beat/migrate may reach Postgres and Redis (k3s enforces
+# NetworkPolicy out of the box; CNPG also needs its operator and peer-pod access).
+networkPolicy:
+  enabled: true
+
+# CNPG Cluster resource (created by Terraform, referenced here only for labels).
+postgres:
+  clusterName: skillpulse-db
+
+redis:
+  # In-cluster Redis Service created by Terraform (local/CI only; no auth, the
+  # NetworkPolicy is the boundary - recorded in docs/decisions.md).
+  service: skillpulse-redis
+  port: 6379

@@ -1,0 +1,44 @@
+{{/*
+Migration hook: alembic upgrade head with the owner database role before new pods
+start (SPEC section 12). The tools' read-only role is created by migration 0003.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: skillpulse-migrate
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrate.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "skillpulse.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      {{- include "skillpulse.podSecurityContext" . | nindent 6 }}
+      containers:
+        - name: migrate
+          {{- include "skillpulse.image" . | nindent 10 }}
+          command: ["alembic", "upgrade", "head"]
+          securityContext:
+            {{- include "skillpulse.containerSecurityContext" . | nindent 12 }}
+          env:
+            - name: SKILLPULSE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dbOwnerSecret }}
+                  key: DATABASE_URL
+          resources:
+            {{- toYaml .Values.migrate.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "skillpulse.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "skillpulse.tmpVolume" . | nindent 8 }}

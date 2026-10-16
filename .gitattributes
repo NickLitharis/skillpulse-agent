@@ -1,0 +1,2 @@
+# Keep shell entrypoints runnable after Windows checkouts.
+*.sh text eol=lf

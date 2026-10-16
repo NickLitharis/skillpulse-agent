@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skillpulse-beat
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: beat
+spec:
+  # SPEC section 12: exactly 1 replica, Recreate - two beats, even briefly during a
+  # rollout, would schedule every task twice.
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "skillpulse.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: beat
+  template:
+    metadata:
+      labels:
+        {{- include "skillpulse.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: beat
+    spec:
+      {{- include "skillpulse.podSecurityContext" . | nindent 6 }}
+      containers:
+        - name: beat
+          {{- include "skillpulse.image" . | nindent 10 }}
+          command:
+            - celery
+            - -A
+            - skillpulse.workers.app
+            - beat
+            - --loglevel=INFO
+            - --pidfile=/tmp/celerybeat.pid
+            - --schedule=/tmp/celerybeat-schedule
+          securityContext:
+            {{- include "skillpulse.containerSecurityContext" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.appSecret }}
+          env:
+            {{- include "skillpulse.commonEnv" . | nindent 12 }}
+          # Wait until the scheduler has created its state on writable storage.
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -s /tmp/celerybeat.pid && kill -0 "$(cat /tmp/celerybeat.pid)" && ls /tmp/celerybeat-schedule* >/dev/null
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          # Beat has no HTTP endpoint and no inspect; check its live PID.
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -f /tmp/celerybeat.pid && kill -0 "$(cat /tmp/celerybeat.pid)"
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.beat.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "skillpulse.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "skillpulse.tmpVolume" . | nindent 8 }}

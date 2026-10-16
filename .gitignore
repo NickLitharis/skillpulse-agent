@@ -45,3 +45,11 @@ eval/results/*
 .DS_Store
 .idea/
 .vscode/
+
+# Local infrastructure state
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfplan
+infra/crash.log
+infra/.kubeconfig

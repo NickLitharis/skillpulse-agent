@@ -14,12 +14,13 @@ import asyncio
 import json
 import logging
 import threading
-from collections.abc import AsyncIterator, Iterator
+import time
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from datetime import date
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, OperationalError
@@ -30,8 +31,15 @@ from skillpulse.agent.graph import run_agent
 from skillpulse.agent.models import AgentModel, build_agent_model
 from skillpulse.config import Settings, get_settings
 from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
+from skillpulse.observability import (
+    metrics_content,
+    observe_agent,
+    observe_extractions,
+    observe_request,
+)
 from skillpulse.runtime import build_session_factory
 from skillpulse.tools import ToolRuntime
+from skillpulse.tracing import record_agent_trace
 from skillpulse.trends import ELIGIBLE_POSTS_DEFINITION, coverage, skill_trend, top_skills
 
 ALLOWED_EXTRACTORS = ("baseline", "llm")
@@ -86,6 +94,25 @@ def create_app(
 
     app = FastAPI(title="SkillPulse Agent", version="0.1.0")
     app.state.taxonomy = tax
+
+    @app.middleware("http")
+    async def count_requests(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        status = 500
+        try:
+            response = await call_next(request)
+            status = response.status_code
+            return response
+        finally:
+            route = getattr(request.scope.get("route"), "path", "unmatched")
+            observe_request(request.method, route, status)
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics() -> Response:
+        observe_extractions(factory)
+        content, content_type = metrics_content()
+        return Response(content=content, headers={"Content-Type": content_type})
 
     def _validate(extractor: str, skill_id: str | None = None) -> None:
         if extractor not in ALLOWED_EXTRACTORS:
@@ -179,8 +206,7 @@ def create_app(
             "extraction_versions": report.extraction_versions,
             "attribution": report.attribution,
             "months": [
-                {"month": month.month.isoformat(), "posts": month.posts}
-                for month in report.months
+                {"month": month.month.isoformat(), "posts": month.posts} for month in report.months
             ],
         }
 
@@ -255,15 +281,29 @@ def _run_agent_sync(
     tax: Taxonomy,
     settings: Settings,
 ) -> Any:
-    return run_agent(
-        question,
-        runtime=runtime,
-        model=model,
-        taxonomy=tax,
-        max_tool_calls=settings.agent_max_tool_calls,
-        overall_timeout_seconds=settings.agent_overall_timeout_seconds,
-        cancel_check=cancel_event.is_set,
-    )
+    started = time.perf_counter()
+    started_ns = time.time_ns()
+    status = "error"
+    try:
+        run = run_agent(
+            question,
+            runtime=runtime,
+            model=model,
+            taxonomy=tax,
+            max_tool_calls=settings.agent_max_tool_calls,
+            overall_timeout_seconds=settings.agent_overall_timeout_seconds,
+            cancel_check=cancel_event.is_set,
+        )
+        if run.error == "cancelled":
+            status = "cancelled"
+        elif run.error:
+            status = "error"
+        else:
+            status = "partial" if run.partial else "ok"
+        record_agent_trace(run, started_ns, settings=settings)
+        return run
+    finally:
+        observe_agent(status, time.perf_counter() - started)
 
 
 def _token_chunks(answer: str, size: int = 6) -> list[str]:

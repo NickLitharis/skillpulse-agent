@@ -1,0 +1,12 @@
+# CI values (deploy-check.yml). Use base resources and single replicas, with HPA off.
+# The workflow sets the image tag to the commit SHA.
+image:
+  tag: ci
+  pullPolicy: Always
+
+workerSkills:
+  hpa:
+    enabled: false  # no metrics-server guarantee on the CI runner
+
+migrate:
+  activeDeadlineSeconds: 300

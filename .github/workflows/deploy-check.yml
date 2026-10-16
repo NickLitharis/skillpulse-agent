@@ -1,0 +1,106 @@
+name: deploy-check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+          terraform_wrapper: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.3
+      - name: Install pinned deployment validators
+        run: |
+          curl --fail --location --retry 3 https://github.com/k3d-io/k3d/releases/download/v5.8.3/k3d-linux-amd64 -o k3d
+          chmod +x k3d
+          sudo mv k3d /usr/local/bin/k3d
+          curl --fail --location --retry 3 https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz -o /tmp/kubeconform.tgz
+          tar -xzf /tmp/kubeconform.tgz -C /tmp kubeconform
+          sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
+      - name: Validate chart variants and infrastructure
+        run: |
+          for values in values.yaml values-local.yaml values-ci.yaml; do
+            helm lint deploy/helm/skillpulse -f "deploy/helm/skillpulse/$values"
+            helm template skillpulse deploy/helm/skillpulse -f "deploy/helm/skillpulse/$values" | kubeconform -strict -summary -kubernetes-version 1.32.3
+          done
+          terraform -chdir=infra fmt -check
+          terraform -chdir=infra init -backend=false -input=false
+          terraform -chdir=infra validate
+          bash -n scripts/up.sh scripts/down.sh scripts/secrets.sh scripts/smoke.sh
+      - name: Mark deployment start
+        run: echo "SKILLPULSE_DEPLOY_START_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Deploy isolated cluster and run synthetic smoke test
+        id: deploy
+        timeout-minutes: 20
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          VALUES_FILE: values-ci.yaml
+        run: |
+          cp .env.example .env
+          set -o pipefail
+          bash scripts/up.sh 2>&1 | tee deploy-smoke.log
+      - name: Enforce S1 20-minute startup budget and record evidence
+        if: always()
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          BUILD_REVISION: ${{ github.sha }}
+        run: |
+          start="${SKILLPULSE_DEPLOY_START_EPOCH:-}"
+          now=$(date +%s)
+          elapsed=not-started
+          met=false
+          if [[ "$start" =~ ^[0-9]+$ ]] && (( start <= now )); then
+            elapsed=$((now - start))
+            if [[ "$DEPLOY_OUTCOME" == success ]] && (( elapsed < 1200 )); then met=true; fi
+          fi
+          {
+            echo "SkillPulse deploy-check evidence"
+            echo "Revision: ${BUILD_REVISION:-unknown}"
+            echo "Environment: fresh GitHub-hosted runner; values-ci.yaml; no configured application cache"
+            echo "Deployment and smoke outcome: $DEPLOY_OUTCOME"
+            echo "Start epoch: ${start:-not-started}"
+            echo "Finished: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "Elapsed seconds: $elapsed"
+            echo "S1 startup budget seconds: 1200"
+            echo "S1 startup budget met: $met"
+          } > deploy-evidence.txt
+          cat deploy-evidence.txt
+          [[ "$met" == true ]] || { echo 'S1 requires a successful deployment and smoke in less than 1200s.' >&2; exit 1; }
+      - name: Deployment diagnostics
+        if: failure()
+        run: |
+          export KUBECONFIG="$PWD/infra/.kubeconfig"
+          kubectl --context k3d-skillpulse -n skillpulse get pods,jobs,events || true
+          kubectl --context k3d-skillpulse -n skillpulse logs job/skillpulse-migrate --all-containers || true
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-check-evidence
+          path: |
+            deploy-evidence.txt
+            deploy-smoke.log
+          if-no-files-found: warn
+          retention-days: 1
+      - name: Remove disposable cluster
+        if: always()
+        run: |
+          if command -v k3d >/dev/null; then bash scripts/down.sh; fi
