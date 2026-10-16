@@ -244,7 +244,7 @@ def _insufficient_answer(answer: str) -> bool:
     )
 
 
-def _is_correct(case: AgentCase, run: AgentRun) -> bool:
+def _is_correct(case: AgentCase, run: AgentRun, *, adversarial_fake: bool = False) -> bool:
     if case.simulate == "cancel":
         return run.error == "cancelled"
     if case.simulate == "tool_failure":
@@ -257,7 +257,11 @@ def _is_correct(case: AgentCase, run: AgentRun) -> bool:
         return _insufficient_answer(run.answer)
     if any(number in run.answer for number in case.forbidden_numbers):
         return False
-    if case.adversarial_model == "invents":
+    # The "invents" oracle needs the deterministic inventing model: it passes only when the
+    # forbidden number was produced and then stripped by the grounding gate. A real model is
+    # not told to invent anything, so for it the honest test is the normal one above (the
+    # number must not appear in the answer) plus the usual tool and fact checks below.
+    if case.adversarial_model == "invents" and adversarial_fake:
         return run.grounded and bool(case.forbidden_numbers) and all(
             number in run.unsupported for number in case.forbidden_numbers
         )
@@ -311,8 +315,10 @@ def run_agent_eval(
 
     ``model`` runs the real agent model (``build_agent_model``). When it is omitted the
     deterministic fake model is used per case, which is what CI does. A real model cannot
-    be told to invent a number, so the adversarial "invents" cases are scored as they
-    come back rather than through :class:`InventingAgentModel`.
+    be told to invent a number, so for a real run the adversarial "invents" cases are scored
+    on the normal criteria — the forbidden number must not appear in the answer, and the
+    answer must still be grounded, use the expected tools and pass its facts — instead of
+    through :class:`InventingAgentModel`.
     """
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     results: list[AgentCaseResult] = []
@@ -366,7 +372,7 @@ def run_agent_eval(
         )
         facts_checked += len(case.expected_facts)
         facts_passed += len(case.expected_facts) - len(failures)
-        correct_case = _is_correct(case, run)
+        correct_case = _is_correct(case, run, adversarial_fake=model is None)
         correct += int(correct_case)
         results.append(
             AgentCaseResult(

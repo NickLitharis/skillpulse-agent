@@ -55,6 +55,32 @@ def test_dataset_path_exists() -> None:
     assert Path(DATASET).is_file()
 
 
+def test_adversarial_case_is_scored_on_normal_criteria_for_a_real_run() -> None:
+    """The "invents" oracle needs the inventing fake; a real model must be scored honestly.
+
+    ``adversarial_model == "invents"`` passes only when the forbidden number reaches
+    ``unsupported``, i.e. when the model wrote it and the grounding gate stripped it. A real
+    model is never told to invent anything, so scoring it that way made the case unwinnable.
+    """
+    engine = build_fixture_engine()
+    try:
+        report = run_agent_eval(
+            engine,
+            load_taxonomy(),
+            load_agent_cases(DATASET),
+            model_label="some-real-model",
+            dataset=DATASET.name,
+            model=FakeAgentModel(),
+        )
+    finally:
+        engine.dispose()
+
+    adversarial = next(r for r in report.results if r.id == "adversarial-invented-number")
+    assert adversarial.unsupported == [], "an honest answer has nothing for the gate to strip"
+    assert adversarial.grounded is True
+    assert adversarial.correct is True, "not inventing the number must count as correct"
+
+
 class ExplodingModel(FakeAgentModel):
     """A planner that fails on one question, the way a flaky provider does."""
 
