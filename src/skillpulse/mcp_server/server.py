@@ -24,6 +24,7 @@ from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date
+from time import perf_counter
 from typing import Annotated, Any, Literal
 
 from mcp.server import MCPServer
@@ -33,12 +34,15 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field, ValidationError
 from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.requests import Request
+from starlette.responses import Response
 
 from skillpulse.config import Settings, get_settings
 from skillpulse.db import make_engine, make_session_factory
 from skillpulse.eval.fixture import build_fixture_engine
 from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
 from skillpulse.logging_config import configure_logging
+from skillpulse.observability import metrics_content, observe_mcp_tool
 from skillpulse.tools import ToolRuntime
 from skillpulse.tools.registry import ToolInputError
 
@@ -70,8 +74,13 @@ def _run(ctx: Context[AppContext], tool: str, args: dict[str, Any]) -> dict[str,
     else is logged server-side by type and reduced to a generic message so a driver
     error can never leak the DSN or SQL.
     """
+    started = perf_counter()
+    outcome = "error"
     try:
         result = ctx.request_context.lifespan_context.runtime.call(tool, args)
+        response = result.model_dump(mode="json")
+        outcome = "ok"
+        return response
     except ToolInputError as exc:
         raise ToolError(str(exc)) from None
     except ValidationError as exc:
@@ -81,9 +90,10 @@ def _run(ctx: Context[AppContext], tool: str, args: dict[str, Any]) -> dict[str,
         logger.warning("mcp tool %s database error: %s", tool, type(exc).__name__)
         raise ToolError(_SAFE_DB_ERROR) from None
     except Exception as exc:
-        logger.exception("mcp tool %s failed: %s", tool, type(exc).__name__)
+        logger.warning("mcp tool %s failed: %s", tool, type(exc).__name__)
         raise ToolError(_SAFE_TOOL_ERROR) from None
-    return result.model_dump(mode="json")
+    finally:
+        observe_mcp_tool(tool, outcome, perf_counter() - started)
 
 
 def build_server(
@@ -117,6 +127,12 @@ def build_server(
         lifespan=lifespan,
     )
 
+    async def metrics(_request: Request) -> Response:
+        content, content_type = metrics_content()
+        return Response(content=content, headers={"Content-Type": content_type})
+
+    server.custom_route("/metrics", methods=["GET"])(metrics)
+
     @server.tool(description="Structured post rows for filters; max 20; never post text.")
     def search_jobs(
         ctx: Context[AppContext],
@@ -130,11 +146,21 @@ def build_server(
         country: Annotated[str | None, Field(min_length=2, max_length=64)] = None,
         limit: Annotated[int, Field(ge=1, le=20)] = 20,
     ) -> dict[str, Any]:
-        return _run(ctx, "search_jobs", {
-            "extractor": extractor, "role_family": role_family, "remote": remote,
-            "months": months, "month_from": month_from, "month_to": month_to,
-            "skill_id": skill_id, "country": country, "limit": limit,
-        })
+        return _run(
+            ctx,
+            "search_jobs",
+            {
+                "extractor": extractor,
+                "role_family": role_family,
+                "remote": remote,
+                "months": months,
+                "month_from": month_from,
+                "month_to": month_to,
+                "skill_id": skill_id,
+                "country": country,
+                "limit": limit,
+            },
+        )
 
     @server.tool(description="Most requested skills for a filter with eligible denominator.")
     def skill_counts(
@@ -147,11 +173,19 @@ def build_server(
         month_to: Annotated[date | None, Field()] = None,
         top_n: Annotated[int, Field(ge=1, le=50)] = 10,
     ) -> dict[str, Any]:
-        return _run(ctx, "skill_counts", {
-            "extractor": extractor, "role_family": role_family, "remote": remote,
-            "months": months, "month_from": month_from, "month_to": month_to,
-            "top_n": top_n,
-        })
+        return _run(
+            ctx,
+            "skill_counts",
+            {
+                "extractor": extractor,
+                "role_family": role_family,
+                "remote": remote,
+                "months": months,
+                "month_from": month_from,
+                "month_to": month_to,
+                "top_n": top_n,
+            },
+        )
 
     @server.tool(description="Monthly share of one skill with numerator and denominator.")
     def skill_trend(
@@ -164,10 +198,19 @@ def build_server(
         month_from: Annotated[date | None, Field()] = None,
         month_to: Annotated[date | None, Field()] = None,
     ) -> dict[str, Any]:
-        return _run(ctx, "skill_trend", {
-            "skill_id": skill_id, "extractor": extractor, "role_family": role_family,
-            "remote": remote, "months": months, "month_from": month_from, "month_to": month_to,
-        })
+        return _run(
+            ctx,
+            "skill_trend",
+            {
+                "skill_id": skill_id,
+                "extractor": extractor,
+                "role_family": role_family,
+                "remote": remote,
+                "months": months,
+                "month_from": month_from,
+                "month_to": month_to,
+            },
+        )
 
     @server.tool(description="Side-by-side counts and trends for 1 to 5 skills.")
     def compare_skills(
@@ -180,10 +223,19 @@ def build_server(
         month_from: Annotated[date | None, Field()] = None,
         month_to: Annotated[date | None, Field()] = None,
     ) -> dict[str, Any]:
-        return _run(ctx, "compare_skills", {
-            "skill_ids": skill_ids, "extractor": extractor, "role_family": role_family,
-            "remote": remote, "months": months, "month_from": month_from, "month_to": month_to,
-        })
+        return _run(
+            ctx,
+            "compare_skills",
+            {
+                "skill_ids": skill_ids,
+                "extractor": extractor,
+                "role_family": role_family,
+                "remote": remote,
+                "months": months,
+                "month_from": month_from,
+                "month_to": month_to,
+            },
+        )
 
     @server.tool(description="CV skills versus most demanded skills; CV text is never stored.")
     def match_cv(
@@ -197,11 +249,20 @@ def build_server(
         month_to: Annotated[date | None, Field()] = None,
         top_n: Annotated[int, Field(ge=1, le=50)] = 10,
     ) -> dict[str, Any]:
-        return _run(ctx, "match_cv", {
-            "cv_text": cv_text, "extractor": extractor, "role_family": role_family,
-            "remote": remote, "months": months, "month_from": month_from, "month_to": month_to,
-            "top_n": top_n,
-        })
+        return _run(
+            ctx,
+            "match_cv",
+            {
+                "cv_text": cv_text,
+                "extractor": extractor,
+                "role_family": role_family,
+                "remote": remote,
+                "months": months,
+                "month_from": month_from,
+                "month_to": month_to,
+                "top_n": top_n,
+            },
+        )
 
     @server.resource(
         TAXONOMY_URI,
@@ -216,9 +277,7 @@ def build_server(
                 {"id": skill.id, "name": skill.name, "category": skill.category}
                 for skill in tax.skills
             ],
-            "role_families": [
-                {"id": role.id, "name": role.name} for role in tax.role_families
-            ],
+            "role_families": [{"id": role.id, "name": role.name} for role in tax.role_families],
         }
         return json.dumps(payload, separators=(",", ":"))
 

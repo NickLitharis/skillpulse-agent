@@ -162,7 +162,7 @@ def run_agent(
             try:
                 result = runtime.call(call["name"], call["args"])
             except Exception:
-                logger.exception("tool %s failed", call["name"])
+                logger.warning("A data tool failed")
                 return {"results": results, "tool_calls_used": used, "error": "tool_failure",
                         "partial": True}
             emit(
@@ -202,9 +202,8 @@ def run_agent(
         )
         if report.unsupported:
             logger.warning(
-                "grounding: unsupported numbers %s in a draft for %s",
-                report.unsupported,
-                state["question"],
+                "grounding: %d unsupported numbers in a draft",
+                len(report.unsupported),
             )
         update: AgentState = {"grounded": report.grounded, "unsupported": report.unsupported}
         if not report.grounded:

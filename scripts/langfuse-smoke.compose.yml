@@ -1,0 +1,106 @@
+# Disposable local-only Langfuse v3 smoke stack. Credentials are synthetic.
+# Pin the tested official images by digest; no floating production deployment.
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: postgresql://postgres:postgres-smoke@postgres:5432/langfuse
+  NEXTAUTH_URL: http://127.0.0.1:${LANGFUSE_SMOKE_PORT:-33007}
+  NEXTAUTH_SECRET: skillpulse-smoke-nextauth-not-for-production
+  SALT: skillpulse-smoke-salt-not-for-production
+  ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: clickhouse-smoke
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: redis-smoke
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: minio-smoke-password
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+
+x-depends: &depends
+  postgres:
+    condition: service_healthy
+  clickhouse:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  minio:
+    condition: service_healthy
+
+services:
+  langfuse-web:
+    image: langfuse/langfuse@sha256:066f3a552efd16a1a020fafef0a52a3d7fa32197dd720caa3284ee9aed014f02
+    depends_on: *depends
+    ports:
+      - "127.0.0.1:${LANGFUSE_SMOKE_PORT:-33007}:3000"
+    environment:
+      <<: *langfuse-env
+      LANGFUSE_INIT_ORG_ID: skillpulse-smoke-org
+      LANGFUSE_INIT_ORG_NAME: SkillPulse synthetic smoke
+      LANGFUSE_INIT_PROJECT_ID: skillpulse-smoke-project
+      LANGFUSE_INIT_PROJECT_NAME: Synthetic metadata only
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-skillpulse-smoke
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-skillpulse-smoke
+      LANGFUSE_INIT_USER_EMAIL: smoke@example.invalid
+      LANGFUSE_INIT_USER_PASSWORD: synthetic-smoke-user-not-for-production
+  langfuse-worker:
+    image: langfuse/langfuse-worker@sha256:d14ca0b75553ccfd3973cb80b71de89056fc0ebfb154bf30283c5c93d48e7e2c
+    depends_on: *depends
+    environment: *langfuse-env
+  postgres:
+    image: postgres@sha256:2203e6282d9e7de7c24d7da234e2a744fb325df366a3fd8ed940e8abbee39527
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-smoke
+      POSTGRES_DB: langfuse
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -d, langfuse]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  clickhouse:
+    image: clickhouse/clickhouse-server@sha256:07afc18d8a9706eb9d85c5c5d2752e5270f91bbc2894caeaecb73e4d0f603bf5
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse-smoke
+    volumes: [clickhouse-data:/var/lib/clickhouse]
+    healthcheck:
+      test: [CMD-SHELL, "clickhouse-client --host 127.0.0.1 --user clickhouse --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1' >/dev/null"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis@sha256:33d7c9a245edd95e6703a0addbeaa48fe40c3b3b4783627a72085155462ebfdb
+    command: [redis-server, --requirepass, redis-smoke, --maxmemory-policy, noeviction]
+    environment:
+      REDISCLI_AUTH: redis-smoke
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:79088401b185045bd228107a59346cff4ba60c980cf45df01421858dbf8f6da7
+    entrypoint: [sh, -c]
+    command: ["mkdir -p /data/langfuse && exec minio server --address :9000 /data"]
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio-smoke-password
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: [CMD, mc, ready, local]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:
+  clickhouse-data:
+  minio-data:

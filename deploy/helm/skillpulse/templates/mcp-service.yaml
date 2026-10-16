@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: skillpulse-mcp
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+spec:
+  selector:
+    {{- include "skillpulse.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+  ports:
+    - name: mcp
+      port: {{ .Values.mcp.port }}
+      targetPort: mcp
+      protocol: TCP

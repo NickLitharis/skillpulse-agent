@@ -1,0 +1,100 @@
+{{- if .Values.networkPolicy.enabled }}
+{{/*
+SPEC section 12: only api, mcp, workers, beat and the migration Job may reach
+Postgres and Redis. k3s enforces NetworkPolicy out of the box; the CloudNativePG
+operator and the cluster's own peer pods also need access to the Postgres pods.
+Two policies because one podSelector cannot match two different label sets.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: skillpulse-postgres-ingress
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ .Values.postgres.clusterName }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # The application workloads (every component consumes Postgres).
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: mcp
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker-fetch
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker-skills
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: beat
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: migrate
+        # The CloudNativePG operator manages the Cluster resource.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudnative-pg
+        # Postgres peer pods (streaming replication within the CNPG cluster).
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ .Values.postgres.clusterName }}
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: skillpulse-redis-ingress
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.redis.service }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: mcp
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker-fetch
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker-skills
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: beat
+        - podSelector:
+            matchLabels:
+              {{- include "skillpulse.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: migrate
+      ports:
+        - protocol: TCP
+          port: {{ .Values.redis.port }}
+{{- end }}

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage*
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Env / secrets
+.env
+.env.*
+
+# Local infrastructure contains kube credentials and provider binaries.
+infra/
+
+# Local data
+.tmp/
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# VCS / CI / docs not needed in the image build context
+.git/
+.github/
+docs/
+tests/
+eval/
+alembic/versions/__pycache__/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

@@ -24,9 +24,17 @@ TASK_MODULES = ["skillpulse.workers.tasks"]
 REFRESH_RECENT_TASK = "skillpulse.workers.tasks.refresh_recent_threads"
 EXTRACT_PENDING_TASK = "skillpulse.workers.tasks.extract_pending"
 REFRESH_TREND_VIEWS_TASK = "skillpulse.workers.tasks.refresh_trend_views"
+# M6: the fetch and skills workers run as separate Deployments, so tasks must land on
+# separate queues (a worker only consumes the queues it is started with). Task names are
+# spelled out here because importing them from tasks.py would be circular (tasks imports
+# this module).
+FETCH_THREAD_TASK = "skillpulse.workers.tasks.fetch_thread"
+DISCOVER_THREADS_TASK = "skillpulse.workers.tasks.discover_threads"
 BEAT_REFRESH_RECENT = "refresh-recent-threads"
 BEAT_EXTRACT_PENDING = "extract-pending-posts"
 BEAT_REFRESH_TRENDS = "refresh-trend-views"
+FETCH_QUEUE = "fetch"
+SKILLS_QUEUE = "skills"
 
 
 def make_celery_app(redis_url: str | None = None) -> Celery:
@@ -72,6 +80,16 @@ def make_celery_app(redis_url: str | None = None) -> Celery:
                     minute=settings.trend_refresh_minute_utc,
                 ),
             },
+        },
+        # M6: one queue per worker Deployment. A worker started with -Q fetch only
+        # consumes fetching tasks, -Q skills only extraction/trend tasks; beat itself
+        # publishes to both through these routes.
+        task_routes={
+            FETCH_THREAD_TASK: {"queue": FETCH_QUEUE},
+            DISCOVER_THREADS_TASK: {"queue": FETCH_QUEUE},
+            REFRESH_RECENT_TASK: {"queue": FETCH_QUEUE},
+            EXTRACT_PENDING_TASK: {"queue": SKILLS_QUEUE},
+            REFRESH_TREND_VIEWS_TASK: {"queue": SKILLS_QUEUE},
         },
     )
     return app

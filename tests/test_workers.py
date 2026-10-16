@@ -24,10 +24,15 @@ from skillpulse.workers import redis_state
 from skillpulse.workers import tasks as worker_tasks
 from skillpulse.workers.app import (
     BEAT_REFRESH_RECENT,
+    DISCOVER_THREADS_TASK,
+    EXTRACT_PENDING_TASK,
+    FETCH_QUEUE,
+    FETCH_THREAD_TASK,
     REFRESH_RECENT_TASK,
+    REFRESH_TREND_VIEWS_TASK,
+    SKILLS_QUEUE,
     app,
 )
-from skillpulse.workers.tasks import DISCOVER_THREADS_TASK, FETCH_THREAD_TASK
 from tests.conftest import make_item
 from tests.test_fetch_service import FakeHNClient
 
@@ -273,6 +278,16 @@ def test_refresh_recent_threads_queues_current_and_previous(
     assert result["queued"] == 2
     # The beat schedule must actually point at this task.
     assert app.conf.beat_schedule[BEAT_REFRESH_RECENT]["task"] == REFRESH_RECENT_TASK
+
+
+def test_task_routes_split_fetch_and_skills_queues() -> None:
+    """M6: fetch/extraction tasks land on the queues their Deployments consume."""
+    routes = app.conf.task_routes
+    assert routes[FETCH_THREAD_TASK]["queue"] == FETCH_QUEUE
+    assert routes[DISCOVER_THREADS_TASK]["queue"] == FETCH_QUEUE
+    assert routes[REFRESH_RECENT_TASK]["queue"] == FETCH_QUEUE
+    assert routes[EXTRACT_PENDING_TASK]["queue"] == SKILLS_QUEUE
+    assert routes[REFRESH_TREND_VIEWS_TASK]["queue"] == SKILLS_QUEUE
 
 
 def test_run_discover_threads_respects_limit() -> None:

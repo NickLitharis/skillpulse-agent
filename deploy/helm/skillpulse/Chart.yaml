@@ -1,0 +1,6 @@
+apiVersion: v2
+name: skillpulse
+description: SkillPulse Agent - job-market analyser over Hacker News "Who is hiring?" threads
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

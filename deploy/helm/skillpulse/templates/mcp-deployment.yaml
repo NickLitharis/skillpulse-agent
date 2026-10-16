@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skillpulse-mcp
+  labels:
+    {{- include "skillpulse.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+spec:
+  replicas: {{ .Values.mcp.replicas }}
+  selector:
+    matchLabels:
+      {{- include "skillpulse.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mcp
+  template:
+    metadata:
+      labels:
+        {{- include "skillpulse.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mcp
+    spec:
+      {{- include "skillpulse.podSecurityContext" . | nindent 6 }}
+      containers:
+        - name: mcp
+          {{- include "skillpulse.image" . | nindent 10 }}
+          # Bind 0.0.0.0 inside the cluster; the server refuses that unless the
+          # explicit env opt-in below is set, and then only answers Host values in
+          # mcp.allowedHosts (Service DNS + loopback for port-forward).
+          command:
+            - skillpulse-mcp
+            - --transport
+            - streamable-http
+            - --host
+            - 0.0.0.0
+            - --port
+            - {{ .Values.mcp.port | quote }}
+          securityContext:
+            {{- include "skillpulse.containerSecurityContext" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.mcpSecret }}
+          env:
+            {{- include "skillpulse.commonEnv" (dict "Values" .Values "databaseSecret" .Values.mcpSecret) | nindent 12 }}
+            - name: SKILLPULSE_MCP_ALLOW_NON_LOOPBACK
+              value: "true"
+            - name: SKILLPULSE_MCP_ALLOWED_HOSTS
+              value: {{ .Values.mcp.allowedHosts | quote }}
+            - name: SKILLPULSE_MCP_ALLOWED_ORIGINS
+              value: {{ .Values.mcp.allowedOrigins | quote }}
+          ports:
+            - name: mcp
+              containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+          # The streamable-HTTP endpoint only speaks the MCP protocol, so probe the
+          # listener at TCP level; protocol-level checks live in the smoke test.
+          livenessProbe:
+            tcpSocket:
+              port: mcp
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: mcp
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.mcp.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "skillpulse.tmpVolumeMount" . | nindent 12 }}
+      volumes:
+        {{- include "skillpulse.tmpVolume" . | nindent 8 }}

@@ -64,3 +64,18 @@ fetch:
 	uv run skillpulse fetch $(THREAD)
 
 LOGLEVEL ?= info
+
+# Disposable local Kubernetes deployment. Requires Docker, k3d, kubectl, Helm,
+# Terraform, openssl, curl, jq and Node/npx. These commands do not enable live HN/LLM.
+.PHONY: up down secrets smoke
+up:
+	bash scripts/up.sh
+
+down:
+	bash scripts/down.sh
+
+secrets:
+	KUBECONFIG="$(CURDIR)/infra/.kubeconfig" bash scripts/secrets.sh
+
+smoke:
+	bash scripts/smoke.sh

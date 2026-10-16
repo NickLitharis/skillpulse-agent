@@ -17,6 +17,7 @@ dependencies = [
     "fastapi>=0.143.2",
     "langgraph>=1.2.15",
     "mcp==2.3.0",
+    "prometheus-client>=0.22,<1",
 ]
 
 [project.scripts]

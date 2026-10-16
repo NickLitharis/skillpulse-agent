@@ -36,17 +36,22 @@ from skillpulse.hn_client import HackerNewsClient, HackerNewsError
 from skillpulse.repository import UpsertResult
 from skillpulse.runtime import build_client, build_session_factory
 from skillpulse.trends import refresh_trend_views
-from skillpulse.workers.app import app
+from skillpulse.workers.app import (
+    DISCOVER_THREADS_TASK,
+    EXTRACT_PENDING_TASK,
+    FETCH_THREAD_TASK,
+    REFRESH_RECENT_TASK,
+    REFRESH_TREND_VIEWS_TASK,
+    app,
+)
 from skillpulse.workers.redis_state import RedisRateLimiter, RedisThreadLock
 from skillpulse.workers.skills import ExtractionBatchResult, run_extract_pending
 
 logger = logging.getLogger(__name__)
 
-FETCH_THREAD_TASK = "skillpulse.workers.tasks.fetch_thread"
-DISCOVER_THREADS_TASK = "skillpulse.workers.tasks.discover_threads"
-REFRESH_RECENT_THREADS_TASK = "skillpulse.workers.tasks.refresh_recent_threads"
-EXTRACT_PENDING_TASK = "skillpulse.workers.tasks.extract_pending"
-REFRESH_TREND_VIEWS_TASK = "skillpulse.workers.tasks.refresh_trend_views"
+# Backwards-compatible alias: the beat/route table in app.py calls this task
+# REFRESH_RECENT_TASK; older callers imported the longer name.
+REFRESH_RECENT_THREADS_TASK = REFRESH_RECENT_TASK
 
 # Current + previous month (SPEC section 8.3).
 RECENT_THREADS = 2

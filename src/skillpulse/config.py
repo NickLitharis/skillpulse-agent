@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     ]
     mcp_allow_non_loopback: bool = False
 
+    # Opt-in metadata-only Langfuse export. No prompts, answers, CVs or tool arguments.
+    langfuse_enabled: bool = False
+    langfuse_base_url: str = ""
+    langfuse_public_key: str = Field(default="", repr=False)
+    langfuse_secret_key: str = Field(default="", repr=False)
+
 
 def get_settings() -> Settings:
     """Return settings built from the current environment."""

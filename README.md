@@ -9,6 +9,19 @@ Full design: [SPEC.md](SPEC.md). Architecture decisions: [docs/decisions.md](doc
 
 ## Status
 
+Milestones **M6 — local Kubernetes deployment** and **M7 — observability/release** are partial.
+The repository now includes a Helm chart, Terraform resources, local deployment scripts,
+a deployment-check workflow, Prometheus metrics, optional metadata-only Langfuse export,
+and a tag-triggered release workflow. See [the deployment runbook](docs/deployment.md)
+for commands, validation evidence, and remaining acceptance gates. API/MCP use separate read-only
+login credentials; both expose bounded metrics, and API extraction volume comes from stored database rows.
+A real local Langfuse ingestion/read-back check is also verified; run
+`pwsh -NoProfile -File scripts/langfuse-smoke.ps1` for its disposable synthetic stack.
+Deployment CI enforces S1's startup deadline and saves timing/smoke evidence when run remotely.
+Run `pwsh -NoProfile -File scripts/acceptance-preflight.ps1` for offline prerequisite checks;
+see [the remaining acceptance gates](docs/remaining-acceptance.md). These changes do not
+establish real-model quality, real-HN coverage, Claude Desktop acceptance, or remote CI success.
+
 Milestone **M5 — MCP server (stdio + HTTP)** (partial):
 
 - `skillpulse.mcp_server` exposes the **same five read-only tools** over **stdio** and
@@ -151,8 +164,8 @@ uv run celery -A skillpulse.workers.app call skillpulse.workers.tasks.fetch_thre
 
 ## MCP server
 
-The MCP server reuses the same read-only tools as the agent, so it needs no separate
-SQL or credentials beyond the read-only database session:
+The MCP server reuses the same read-only tools as the agent, so it needs no separate SQL.
+Use a read-only login in its database URL. Local Kubernetes deployment supplies its own MCP login:
 
 ```bash
 # stdio (for MCP clients such as Claude Desktop)
