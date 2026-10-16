@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from celery import Celery
 from celery.schedules import crontab
+from kombu import Queue  # type: ignore[import-untyped]
 
 from skillpulse.config import get_settings
 
@@ -52,6 +53,10 @@ def make_celery_app(redis_url: str | None = None) -> Celery:
         accept_content=["json"],
         timezone="UTC",
         enable_utc=True,
+        # The default local worker must consume the same queues the routes publish to.
+        # Kubernetes workers still select their own queue explicitly with -Q.
+        task_default_queue=FETCH_QUEUE,
+        task_queues=(Queue(FETCH_QUEUE), Queue(SKILLS_QUEUE)),
         # One fetch at a time per worker: a task is long-running and holds a DB session.
         worker_prefetch_multiplier=1,
         task_acks_late=True,

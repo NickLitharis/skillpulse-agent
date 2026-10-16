@@ -32,6 +32,7 @@ from skillpulse.workers.app import (
     REFRESH_TREND_VIEWS_TASK,
     SKILLS_QUEUE,
     app,
+    make_celery_app,
 )
 from tests.conftest import make_item
 from tests.test_fetch_service import FakeHNClient
@@ -106,6 +107,12 @@ def _patch_runtime(
     monkeypatch.setattr(worker_tasks, "build_session_factory", lambda: factory)
     monkeypatch.setattr(worker_tasks, "build_client", lambda **_: nullcontext(client))
     monkeypatch.setattr(worker_tasks, "RedisThreadLock", lock)
+
+
+def test_default_worker_consumes_both_routed_queues() -> None:
+    worker_app = make_celery_app("memory://")
+    assert set(worker_app.amqp.queues) == {FETCH_QUEUE, SKILLS_QUEUE}
+    assert worker_app.conf.task_default_queue == FETCH_QUEUE
 
 
 def test_run_fetch_thread_summarises_and_is_idempotent(factory: sessionmaker[Session]) -> None:

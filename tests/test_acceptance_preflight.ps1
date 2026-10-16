@@ -56,3 +56,6 @@ try {
     }
     Remove-Item -LiteralPath $temp -Recurse -Force
 }
+# GitHub's pwsh wrapper forwards LASTEXITCODE. Clear the expected strict-child failure
+# only after every assertion and cleanup succeeded; exceptions still exit nonzero.
+exit 0
