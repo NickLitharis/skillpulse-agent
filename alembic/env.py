@@ -12,7 +12,7 @@ from skillpulse.models import Base
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # The app owns the URL. Tests (and CI) may pre-set it on the Config object, so only
 # fall back to the environment when it has not been set.

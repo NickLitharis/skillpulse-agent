@@ -165,3 +165,34 @@ The review caught Git's Windows CRLF conversion of new shell entrypoints. `.gita
 policy and produced LF with the actual policy. This guards fresh Windows checkouts without changing
 application behavior. The publication scope is now 54 paths. Remote CI and PR evidence will be read
 from GitHub after publication; configuration and local test success do not count as a remote pass.
+
+## PR #1: observed CI and compatibility fixes
+
+Published commit `0f9c574e2d8e444213af45e086108beb4e2acb29` in
+[PR #1](https://github.com/NickLitharis/skillpulse-agent/pull/1). The first
+[deployment run](https://github.com/NickLitharis/skillpulse-agent/actions/runs/38870868739)
+passed on a fresh GitHub-hosted runner in **166 seconds**, with no configured application cache.
+Downloaded artifact `deploy-check-evidence` records successful deployment/smoke and the strict
+1200-second budget. Its tested PR merge revision is
+`e58972c3ee6a2ef603a1dfe1e1efe1f4d3e38229`, not a `main` deployment.
+
+The first general CI run exposed two failures that were reproduced locally before fixing:
+
+- The preflight's 14 assertions passed, but GitHub's PowerShell wrapper forwarded the deliberately
+  failed strict child's exit code. The test script now exits zero only after all assertions and
+  cleanup succeed. An intentionally wrong assertion still exits nonzero.
+- Explicit task routes published to `fetch`/`skills`, but the documented default Celery worker only
+  consumed `celery`. Declare both queues and default to `fetch`; workers using `-Q` remain isolated.
+  A new queue-consumption unit test failed against the old configuration. The original real
+  Redis/worker/local-HTTP-stub integration test now passes without weakening it.
+
+Running unit and integration tests together also exposed Alembic disabling existing application
+loggers. Its logging setup now preserves existing loggers; the tracing privacy/error assertion
+passes after migrations instead of being silently disabled. No schema or migration SQL changed.
+
+Validation after these fixes: **182 passed, 5 opt-in skipped**, including all 19 Docker integration
+tests; Ruff passes for `src`, `tests` and the changed Alembic environment, and strict mypy passes
+47 source files. The successful PowerShell run was checked through GitHub's actual exit-forwarding
+wrapper. These fixes add one previously unchanged path (`alembic/env.py`), for a total publication
+scope of 55 paths. The corrected revision still needs a fresh remote CI run before a green claim.
+Main deployment, original Desktop acceptance and release publication are still separate gates.

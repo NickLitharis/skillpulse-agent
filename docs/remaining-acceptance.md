@@ -28,7 +28,7 @@ Pass `-DesktopExecutable <path>` to check an explicitly selected executable. The
 | Answer quality, S3/S4 | Approved real-model configuration and shared Redis budget; report model identity, dataset identity and measured correctness/grounding | [M4 acceptance](m4-acceptance.md) |
 | Langfuse | Isolated local ingestion/read-back is verified with two real tests. A hosted deployment, if needed, still needs its own protected configuration and read-back check | [Disposable live test](deployment.md#disposable-live-langfuse-check) |
 | Desktop and GUI Inspector, S8 | Run the actual clients and record the demo; installation/configuration presence is not acceptance | [M5 acceptance](m5-acceptance.md) |
-| Remote CI, S7 | Explicit push permission, reviewed diff, then successful PR and `main` deployment-check runs | [Deployment workflow](../.github/workflows/deploy-check.yml) |
+| Remote CI, S7 | Approved PR #1 deployment-check passed on a fresh hosted runner in 166s; full corrected PR CI and green `main` remain required | [Deployment workflow](../.github/workflows/deploy-check.yml) |
 | Release, M7 | Explicit version/tag and publication approval, successful image publication and demo/CV evidence | [Release workflow](../.github/workflows/release.yml), [SPEC](../SPEC.md) |
 
 No live-provider test should run merely because credentials exist. Review provider pricing and budget first.
