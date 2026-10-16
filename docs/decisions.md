@@ -225,3 +225,41 @@ wants, because both models chose `skill_trend` for a single-skill comparison.
 **Consequence.** The plan prompt is larger, so token cost per call rises; the shared
 `RedisDailyBudget` still bounds it. `TOOL_SPECS` serves the MCP server as well, so the MCP
 tool descriptions changed with it.
+
+## D011 — Two evaluation defects fixed, five shortfalls kept (2026-10-16)
+
+**Decision.** The committed real-model agent result is `correctness 0.9219` (59/64),
+`grounding 1.0`, `tool-selection 0.9796`, `facts 214/222`. It follows two fixes to defects
+in this project's own evaluation code and planner guidance. Nothing in the dataset, the
+fixture, the ground truth or the pass thresholds changed, and the five remaining failures
+are reported as they fall rather than edited away.
+
+**Fix 1 — the adversarial case was unwinnable for a real model.** `adversarial_model ==
+"invents"` passed only when the forbidden number reached the run's `unsupported` list, that
+is, only when the model wrote the number and the grounding gate stripped it. Only the
+deterministic inventing fake is ever told to invent anything, so a real model that answered
+correctly without fabricating the number was scored wrong. A real run is now scored on the
+normal criteria: the forbidden number must not appear in the answer, and the answer must
+still be grounded and pass its tools and facts. The fake oracle is unchanged.
+
+**Fix 2 — the clarify rule rejected answerable questions.** The planner was told to ask back
+when the question named no role family, skill, region or time window. That rejected "most
+requested skills in remote posts" (remote is a filter) and "my resume lists Python and SQL,
+what are the gaps for data roles?" (data is a role family), and no rule said when to refuse,
+so off-topic questions also got a clarifying question. The guidance now answers whenever at
+least one filter or a time window is present, clarifies only when there is neither, and
+refuses explicitly off-topic questions. Over the same 64 cases the two fixes move correctness
+from 0.8125 to 0.9219.
+
+**Kept shortfalls, not suppressed.** `region-nl-data` drops the `role_family` filter that the
+question states. `cv-data` reaches for `skill_counts` where the question is about matching a
+CV. `imp-2010` and `imp-2010-kubernetes` quote a zero (or answer "0") for a year the fixture
+does not cover: the fixture spans 2019–2023, so the honest answer is that the window is
+unsupported, and reporting zero implies a measurement that was never made. `imp-1999` answers
+"insufficient sample (less than 30 posts)", which is correct in substance but does not match
+the wording the check accepts. That check was deliberately left alone: four of the seven
+insufficient-sample cases pass, so its vocabulary is reachable, and widening it further would
+be editing the test to fit the answer.
+
+**Consequence.** The README states the model, the endpoint and the agent timeout the run used,
+so a reader can reproduce the number — or reproduce the failures.

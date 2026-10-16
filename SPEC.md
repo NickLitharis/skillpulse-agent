@@ -404,14 +404,16 @@ Each milestone is one or more small PRs with its acceptance check.
 | LLM invents numbers | Tools are the only source of numbers; grounding check; S4 |
 | Scope creep (UI, cloud, auth) | Non-goals in §3 and the cut list in §18 |
 
-## 17. CV line (fill in after R2)
+## 17. CV line
 
 > **SkillPulse Agent** — Job-market analysis agent over Hacker News hiring threads
 > (LangGraph, MCP, FastAPI, Postgres, Celery/Redis, Kubernetes/Helm, Terraform,
 > GitHub Actions).
-> Scored [X] micro-F1 on skill extraction against a [Y] keyword baseline and [Z] answer
-> correctness, with [W]% of numbers grounded in SQL results, on a committed evaluation
-> fixture; every PR deploys the full stack to a Kubernetes cluster in CI.
+> Scored 0.9552 micro-F1 on LLM skill extraction and 0.9219 answer correctness, with 100%
+> of quoted numbers grounded in SQL results, over a committed 64-question evaluation
+> fixture; the deterministic alias baseline scores 0.991 on the same synthetic set, which is
+> built from taxonomy aliases and therefore favours it. Every PR deploys the full stack to a
+> Kubernetes cluster in CI.
 
 ## 18. Deliberately out of scope
 

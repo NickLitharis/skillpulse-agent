@@ -18,14 +18,21 @@ Five read-only tools, shared by the agent and the MCP server: `search_jobs`,
 |------|---------|--------|
 | Baseline extraction (alias matcher) | 40 synthetic posts | micro-F1 0.991, macro-F1 0.9783 |
 | LLM extraction (S2) | same 40 posts | micro-F1 **0.9552**, macro-F1 0.9442, required-accuracy 0.925, unknown-rate 0.006 — `nvidia/nemotron-3-super-120b-a12b` |
-| Agent answers (S3, correctness) | 64 questions, 222 facts | pending — see [SPEC §15 R1](SPEC.md) |
-| Agent grounding (S4) | same | pending — see [SPEC §15 R1](SPEC.md) |
+| Agent answers (S3, correctness) | 64 questions, 222 facts | correctness **0.9219** (59/64), tool-selection 0.9796, facts 214/222 |
+| Agent grounding (S4) | same | **1.0** — every number in an answer traced to a tool result |
 
 Both real-model rows use `nvidia/nemotron-3-super-120b-a12b` over an OpenAI-compatible
 NVIDIA NIM endpoint, chosen by screening the key's live catalogue rather than by
-reputation ([D009](docs/decisions.md)). Every row above is **synthetic data**: live
-Hacker News text stays gated ([D006](docs/decisions.md)), so none of these is a
-real-data result and none is a claim about real hiring demand.
+reputation ([D009](docs/decisions.md)), run with `SKILLPULSE_AGENT_LLM_TIMEOUT_SECONDS=60`.
+Every row above is **synthetic data**: live Hacker News text stays gated
+([D006](docs/decisions.md)), so none of these is a real-data result and none is a claim
+about real hiring demand.
+
+Five of the 64 agent questions fail, and they are named rather than smoothed over
+([D011](docs/decisions.md)): one drops a role filter the question states, one reaches for
+`skill_counts` where the question is about a CV, and three ask about a year the fixture does
+not cover. The committed result JSON lists every case, so the failures can be re-read
+directly.
 
 The harness itself is verified with a deterministic **fake model**: 222/222 facts passed,
 correctness 1.0, grounding 1.0. That is a contract check on the scorer and the grounding
@@ -187,8 +194,8 @@ data. Live authorization is unresolved — see [docs/terms.md](docs/terms.md).
 ## Status
 
 Ingestion, extraction, trends, the agent, the MCP server, the Helm chart and CI are built
-and tested. What remains is one real-model evaluation run, a green `main` deploy, and the
-last documentation trim: [SPEC §16](SPEC.md).
+and tested, and the real-model results above are committed. What remains is the last
+documentation trim ([SPEC §15](SPEC.md) R3) and the tagged `v1.0.0` release.
 
 ## Licence
 
