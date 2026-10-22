@@ -65,7 +65,7 @@ try {
     [Environment]::SetEnvironmentVariable('SKILLPULSE_LANGFUSE_ENABLED', 'true')
     [Environment]::SetEnvironmentVariable('SKILLPULSE_LANGFUSE_BASE_URL', "http://127.0.0.1:$Port")
     [Environment]::SetEnvironmentVariable('SKILLPULSE_LANGFUSE_PUBLIC_KEY', 'pk-lf-skillpulse-smoke')
-    [Environment]::SetEnvironmentVariable('SKILLPULSE_LANGFUSE_SECRET_KEY', 'sk-lf-skillpulse-smoke')
+    [Environment]::SetEnvironmentVariable('SKILLPULSE_LANGFUSE_SECRET_KEY', 'smoke-not-a-key')
     foreach ($name in 'SKILLPULSE_HN_LIVE_FETCH_ENABLED', 'SKILLPULSE_LLM_ENABLED', 'SKILLPULSE_AGENT_LLM_ENABLED') {
         [Environment]::SetEnvironmentVariable($name, 'false')
     }
@@ -74,7 +74,7 @@ try {
     $attemptedStart = $true
     & docker @composeArgs up -d --wait --wait-timeout $StartupTimeoutSeconds
     if ($LASTEXITCODE -ne 0) { throw 'Disposable Langfuse stack startup failed.' }
-    $basic = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('pk-lf-skillpulse-smoke:sk-lf-skillpulse-smoke'))
+    $basic = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('pk-lf-skillpulse-smoke:smoke-not-a-key'))
     $ready = $false
     $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
     while ([DateTime]::UtcNow -lt $deadline) {

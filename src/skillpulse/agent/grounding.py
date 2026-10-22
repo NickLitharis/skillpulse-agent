@@ -118,8 +118,9 @@ def evidence_values(results: list[ToolResult]) -> list[_Evidence]:
     return out
 
 
-def _resolve_field(result: ToolResult, path: str) -> Any:
-    node: Any = result.model_dump(mode="json")
+def resolve_path(value: Any, path: str) -> Any:
+    """Resolve a dotted path (with list indexes) through JSON-shaped data."""
+    node = value
     for part in path.split("."):
         if isinstance(node, dict):
             if part not in node:
@@ -133,6 +134,10 @@ def _resolve_field(result: ToolResult, path: str) -> Any:
         else:
             return None
     return node
+
+
+def _resolve_field(result: ToolResult, path: str) -> Any:
+    return resolve_path(result.model_dump(mode="json"), path)
 
 
 def _is_number(value: Any) -> bool:

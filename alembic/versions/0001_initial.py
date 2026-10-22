@@ -24,7 +24,12 @@ def upgrade() -> None:
         sa.Column("month", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("descendant_count", sa.Integer(), nullable=True),
-        sa.Column("fetched_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "fetched_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
     )
     op.create_index("ix_threads_month", "threads", ["month"])
 
@@ -43,8 +48,18 @@ def upgrade() -> None:
         sa.Column("text_clean", sa.Text(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("is_dead", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("first_seen_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "first_seen_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
     )
     op.create_index("ix_posts_month", "posts", ["month"])
     op.create_index("ix_posts_thread_id", "posts", ["thread_id"])
@@ -64,7 +79,12 @@ def upgrade() -> None:
         sa.Column("posts_upserted", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("last_item_id", sa.BigInteger(), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "started_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint("status IN ('running', 'ok', 'failed')", name="ck_fetch_runs_status"),
     )

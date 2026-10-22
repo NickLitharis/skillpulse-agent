@@ -45,7 +45,7 @@ services:
       LANGFUSE_INIT_PROJECT_ID: skillpulse-smoke-project
       LANGFUSE_INIT_PROJECT_NAME: Synthetic metadata only
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-skillpulse-smoke
-      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-skillpulse-smoke
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: smoke-not-a-key
       LANGFUSE_INIT_USER_EMAIL: smoke@example.invalid
       LANGFUSE_INIT_USER_PASSWORD: synthetic-smoke-user-not-for-production
   langfuse-worker:

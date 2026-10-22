@@ -27,6 +27,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 from skillpulse.agent.graph import AgentRun, run_agent
+from skillpulse.agent.grounding import resolve_path
 from skillpulse.agent.models import AgentModel, DraftResult, FakeAgentModel
 from skillpulse.extraction.taxonomy import Taxonomy
 from skillpulse.tools import ToolResult, ToolRuntime
@@ -172,28 +173,12 @@ def _case_model(case: AgentCase) -> AgentModel:
     return FakeAgentModel()
 
 
-def _resolve_path(result: ToolResult, path: str) -> Any:
-    node: Any = result.model_dump(mode="json")
-    for part in path.split("."):
-        if isinstance(node, dict):
-            if part not in node:
-                return None
-            node = node[part]
-        elif isinstance(node, list):
-            try:
-                node = node[int(part)]
-            except (IndexError, ValueError):
-                return None
-        else:
-            return None
-    return node
-
 
 def _check_fact(result: ToolResult, fact: dict[str, Any]) -> bool:
     """Check one expected fact against the exact field of the named tool result."""
     kind = fact.get("kind")
     if kind == "field":
-        value = _resolve_path(result, str(fact.get("path", "")))
+        value = resolve_path(result.model_dump(mode="json"), str(fact.get("path", "")))
         expected = fact.get("value")
         if expected is None or value is None:
             return value is None and expected is None
@@ -211,7 +196,7 @@ def _check_fact(result: ToolResult, fact: dict[str, Any]) -> bool:
     if kind == "min_rows":
         return result.row_count >= int(fact.get("value", 0))
     if kind == "nonempty":
-        return bool(_resolve_path(result, str(fact.get("path", ""))))
+        return bool(resolve_path(result.model_dump(mode="json"), str(fact.get("path", ""))))
     return False
 
 
