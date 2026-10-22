@@ -191,7 +191,9 @@ fixture are committed and hold no post text, so a reader can reproduce any numbe
 
 Any OpenAI-compatible provider works, including DeepSeek. Point
 `SKILLPULSE_LLM_BASE_URL` and `SKILLPULSE_AGENT_LLM_BASE_URL` at
-`https://api.deepseek.com/v1` and set the model to `deepseek-chat`. Put the key in the
+`https://api.deepseek.com/v1` and set the model to `deepseek-chat`. DeepSeek also runs
+through OpenRouter, where the same settings become
+`https://openrouter.ai/api/v1` with `deepseek/deepseek-v4.1-flash`. Put the key in the
 environment and reference it from `.env` as `${DEEPSEEK_API_KEY}`; `.env` is gitignored,
 and a key is never committed. The
 agent must not quote a share based on fewer than 30 posts, and expected facts are computed
