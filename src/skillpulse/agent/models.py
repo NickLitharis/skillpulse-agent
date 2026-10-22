@@ -445,10 +445,24 @@ class OpenAIAgentModel:
             '{"clarify":"..."} or {"refuse":true} or {"infeasible_reason":"..."}.'
         )
         payload = self._complete_json(prompt)
-        calls = [
-            ToolCall(name=str(call["name"]), args=dict(call.get("args") or {}))
-            for call in payload.get("tool_calls") or []
-        ]
+        raw_calls = payload.get("tool_calls") or []
+        if not isinstance(raw_calls, list):
+            raise LLMExtractionError("agent model returned a non-list tool_calls")
+        calls: list[ToolCall] = []
+        for call in raw_calls:
+            if not isinstance(call, dict) or not isinstance(call.get("name"), str):
+                raise LLMExtractionError(
+                    "each planned tool call must be an object with a string name"
+                )
+            name = call["name"].strip()
+            if not name:
+                raise LLMExtractionError("planned tool call has an empty name")
+            args = call.get("args")
+            if args is None:
+                args = {}
+            if not isinstance(args, dict):
+                raise LLMExtractionError("planned tool call args must be an object")
+            calls.append(ToolCall(name=name, args=args))
         return PlanResult(
             calls=calls,
             refuse=bool(payload.get("refuse")),

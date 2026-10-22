@@ -306,6 +306,40 @@ def test_ask_endpoint_streams_sse_events(factory: sessionmaker[Session]) -> None
     assert done["partial"] is False
 
 
+class ExplodingModel(FakeAgentModel):
+    """A model that raises the way a provider 500 does, after the stream has started."""
+
+    name = "fake-exploding"
+
+    def plan(
+        self, question: str, taxonomy: Taxonomy, tool_specs: list[dict[str, Any]]
+    ) -> PlanResult:
+        raise RuntimeError("simulated provider 500")
+
+
+def test_ask_endpoint_closes_the_stream_with_error_then_done(
+    factory: sessionmaker[Session],
+) -> None:
+    app = create_app(factory, load_taxonomy(), agent_model=ExplodingModel())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/ask", json={"question": "Which skills are most requested in backend posts?"}
+    )
+    assert response.status_code == 200
+    names = [
+        line.split("event: ", 1)[1]
+        for line in response.text.splitlines()
+        if line.startswith("event: ")
+    ]
+    assert names[-2:] == ["error", "done"]
+    done_line = next(
+        line for line in response.text.splitlines() if line.startswith('data: {"trace_id"')
+    )
+    done = json.loads(done_line.split("data: ", 1)[1])
+    assert done["partial"] is True
+    assert done["grounded"] is False
+
+
 def test_ask_endpoint_returns_503_when_database_is_down() -> None:
     class BrokenFactory:
         def __call__(self) -> None:

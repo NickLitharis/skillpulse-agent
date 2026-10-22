@@ -246,12 +246,24 @@ def create_app(
 
         async def event_stream() -> AsyncIterator[str]:
             watcher = asyncio.create_task(watch_disconnect())
+            run = None
             try:
                 run = await run_in_threadpool(
                     _run_agent_sync, payload.question, cancel_event, runtime, model, tax, settings
                 )
+            except Exception:
+                # Headers already say 200, so a provider failure must end the stream with
+                # an explicit error/done pair instead of truncating it.
+                logger.exception("agent run failed after the SSE response started")
             finally:
                 watcher.cancel()
+            if run is None:
+                yield _sse(
+                    "error",
+                    {"code": "agent_error", "message": "the agent could not complete the request"},
+                )
+                yield _sse("done", {"trace_id": None, "partial": True, "grounded": False})
+                return
             for event in run.events:
                 if event["event"] == "done":
                     continue

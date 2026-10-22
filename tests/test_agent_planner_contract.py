@@ -86,3 +86,20 @@ def test_invented_arguments_are_rejected_rather_than_ignored() -> None:
 
     args = SkillCountsArgs(role_family="backend", month_from="2021-01-01")
     assert args.role_family == "backend"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"tool_calls": [{"args": {}}]},
+        {"tool_calls": [{"name": 7}]},
+        {"tool_calls": ["skill_counts"]},
+        {"tool_calls": {"name": "skill_counts"}},
+        {"tool_calls": [{"name": "skill_counts", "args": []}]},
+    ],
+)
+def test_malformed_planned_tool_calls_are_rejected(payload: dict[str, object]) -> None:
+    client = RecordingClient([json.dumps(payload)])
+    model = OpenAIAgentModel(client, max_output_tokens=64)
+    with pytest.raises(LLMExtractionError):
+        model.plan("Which skills are hot?", load_taxonomy(), TOOL_SPECS)
