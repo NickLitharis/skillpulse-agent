@@ -44,11 +44,59 @@ def test_agent_eval_on_fixture_is_correct_and_grounded() -> None:
     assert report.model == "fake"
     assert report.source == "fixture"
     assert report.cases == 9
-    assert report.correct == report.cases, [r.id for r in report.results if not r.correct]
-    assert report.grounding_rate == 1.0
+    # The two simulated failures are recorded as failures, never as correct answers.
+    assert report.correct == 7, [r.id for r in report.results if not r.correct]
+    # Grounding counts every run, including the simulated failures and the fallback.
+    assert report.grounding_rate == round(6 / 9, 4)
+    assert report.draft_grounded_rate == 1.0
     assert report.tool_selection_accuracy == 1.0
     invented = next(r for r in report.results if r.id == "adversarial-invented-number")
     assert "999" in invented.unsupported
+
+
+def test_error_run_is_never_scored_correct() -> None:
+    engine = build_fixture_engine()
+    try:
+        report = run_agent_eval(
+            engine,
+            load_taxonomy(),
+            load_agent_cases(DATASET),
+            model_label="fake",
+            dataset=DATASET.name,
+        )
+    finally:
+        engine.dispose()
+    failed = [result for result in report.results if result.error is not None]
+    assert {result.id for result in failed} == {"tools-failure", "client-cancellation"}
+    assert all(result.correct is False for result in failed)
+    # The same rule applies to an answer that happens to contain "cannot".
+    insufficient = next(
+        result for result in failed if result.id != "client-cancellation"
+    )
+    assert "cannot" in insufficient.answer.lower()
+
+
+def test_fallback_is_not_counted_as_grounded() -> None:
+    engine = build_fixture_engine()
+    try:
+        report = run_agent_eval(
+            engine,
+            load_taxonomy(),
+            load_agent_cases(DATASET),
+            model_label="fake",
+            dataset=DATASET.name,
+        )
+    finally:
+        engine.dispose()
+    fallback = next(
+        result
+        for result in report.results
+        if result.error is None and result.partial
+    )
+    assert fallback.id == "adversarial-invented-number"
+    assert fallback.grounded is False
+    assert report.draft_grounded_rate == 1.0
+    assert report.grounding_rate < report.draft_grounded_rate
 
 
 def test_dataset_path_exists() -> None:
@@ -127,5 +175,6 @@ def test_one_failing_case_does_not_abort_the_run() -> None:
     assert [r.id for r in failed] == ["impossible-greek"]
     assert failed[0].correct is False
     assert exploded.correct == control.correct - 1
-    # A case with no answer is excluded from grounding, exactly like a tool failure.
-    assert exploded.grounding_rate == 1.0
+    # A failed case counts as not grounded, exactly like a simulated tool failure.
+    assert control.grounding_rate == round(7 / 9, 4)
+    assert exploded.grounding_rate == round(6 / 9, 4)

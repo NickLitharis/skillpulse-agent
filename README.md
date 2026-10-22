@@ -18,8 +18,8 @@ Five read-only tools, shared by the agent and the MCP server: `search_jobs`,
 |------|---------|--------|
 | Baseline extraction (alias matcher) | 40 synthetic posts | micro-F1 0.991, macro-F1 0.9783 |
 | LLM extraction (S2) | same 40 posts | micro-F1 **0.9552**, macro-F1 0.9442, required-accuracy 0.925, unknown-rate 0.006 — `nvidia/nemotron-3-super-120b-a12b` |
-| Agent answers (S3, correctness) | 64 questions, 222 facts | correctness **0.9219** (59/64), tool-selection 0.9796, facts 214/222 |
-| Agent grounding (S4) | same | **1.0** — every number in an answer traced to a tool result |
+| Agent answers (S3, correctness) | 64 questions, 222 facts | correctness **0.8594** (55/64), tool-selection 0.9796, facts 214/222 |
+| Agent grounding (S4) | same | **0.7969** (51/64 runs with a real grounded draft); the 9 raw-table fallbacks and 4 failed runs are **not** counted as grounded. Draft-only rate: 1.0 (51/51) |
 
 Both real-model rows use `nvidia/nemotron-3-super-120b-a12b` over an OpenAI-compatible
 NVIDIA NIM endpoint, chosen by screening the key's live catalogue rather than by
@@ -28,14 +28,22 @@ Every row above is **synthetic data**: live Hacker News text stays gated
 ([D006](docs/decisions.md)), so none of these is a real-data result and none is a claim
 about real hiring demand.
 
-Five of the 64 agent questions fail, and they are named rather than smoothed over
-([D011](docs/decisions.md)): one drops a role filter the question states, one reaches for
-`skill_counts` where the question is about a CV, and three ask about a year the fixture does
-not cover. The committed result JSON lists every case, so the failures can be re-read
-directly.
+Nine of the 64 agent questions fail, and they are counted as failures rather than smoothed
+over. Five are model mistakes named in [D011](docs/decisions.md): one drops a role filter
+the question states, one reaches for `skill_counts` where the question is about a CV, and
+three ask about a year the fixture does not cover. The other four runs failed outright
+(three `tool_failure`, one `cancelled`); they are counted as failures even though their
+fallback text contains "cannot". No error run is ever scored correct.
+
+The S4 figure of 0.7969 is below the 0.98 target: 9 of the 60 non-error runs fell back to a
+raw tool table instead of a model draft. Those fallbacks render verified fields, but they
+are not counted as grounded. The 51 real drafts are all grounded (51/51), which is why the
+draft-only rate is reported separately.
 
 The harness itself is verified with a deterministic **fake model**: 222/222 facts passed,
-correctness 1.0, grounding 1.0. That is a contract check on the scorer and the grounding
+correctness 0.9688 (62/64; the two deliberately simulated failure/cancellation cases count
+as failures), grounding 0.9531 (61/64; the one adversarial fallback is not grounded), and
+draft-only grounding 1.0 (61/61). That is a contract check on the scorer and the grounding
 gate, not a model-quality result. PR checks use it so CI stays free and keyless.
 
 ## Quick start
@@ -221,8 +229,9 @@ data. Live authorization is unresolved — see [docs/terms.md](docs/terms.md).
 ## Status
 
 Ingestion, extraction, trends, the agent, the MCP server, the Helm chart, the Compose
-stack and CI are built and tested, and the real-model results above are committed. What remains is the last
-documentation trim ([SPEC §15](SPEC.md) R3) and the tagged `v1.0.0` release.
+stack and CI are built and tested, and the real-model results above are committed and
+scored honestly. S3 clears its 0.85 target; S4's 0.7969 is below the 0.98 target because
+9 runs fell back to raw tables. What remains is the tagged `v1.0.0` release.
 
 ## Licence
 

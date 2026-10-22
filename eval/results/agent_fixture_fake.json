@@ -8,9 +8,9 @@
     "dataset": "agent_cases.json",
     "source": "fixture",
     "cases": 9,
-    "correct": 9,
-    "correctness": 1.0,
-    "grounding_rate": 1.0,
+    "correct": 7,
+    "correctness": 0.7778,
+    "grounding_rate": 0.6667,
     "tool_selection_accuracy": 1.0,
     "results": [
       {
@@ -101,7 +101,7 @@
         "id": "adversarial-invented-number",
         "question": "Which skills are most requested in backend posts?",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "skill_counts"
         ],
@@ -116,7 +116,7 @@
       {
         "id": "tools-failure",
         "question": "Which skills do backend posts mention?",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [
           "skill_counts"
@@ -130,7 +130,7 @@
       {
         "id": "client-cancellation",
         "question": "Which skills do backend posts mention?",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [],
         "expected_tools": [],
@@ -139,6 +139,7 @@
         "partial": true,
         "unsupported": []
       }
-    ]
+    ],
+    "draft_grounded_rate": 1.0
   }
 }

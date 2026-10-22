@@ -422,11 +422,12 @@ Each milestone is one or more small PRs with its acceptance check.
 > **SkillPulse Agent** — Job-market analysis agent over Hacker News hiring threads
 > (LangGraph, MCP, FastAPI, Postgres, Celery/Redis, Kubernetes/Helm, Terraform,
 > GitHub Actions).
-> Scored 0.9552 micro-F1 on LLM skill extraction and 0.9219 answer correctness, with 100%
-> of quoted numbers grounded in SQL results, over a committed 64-question evaluation
-> fixture; the deterministic alias baseline scores 0.991 on the same synthetic set, which is
-> built from taxonomy aliases and therefore favours it. Every PR deploys the full stack to a
-> Kubernetes cluster in CI.
+> Scored 0.9552 micro-F1 on LLM skill extraction and 0.8594 answer correctness (55/64),
+> with 51 of 64 runs producing a grounded draft (9 raw-table fallbacks and 4 failed runs
+> counted as not grounded; all 51 real drafts are grounded), over a committed 64-question
+> evaluation fixture; the deterministic alias baseline scores 0.991 on the same synthetic
+> set, which is built from taxonomy aliases and therefore favours it. Every PR deploys the
+> full stack to a Kubernetes cluster in CI.
 
 ## 18. Deliberately out of scope
 

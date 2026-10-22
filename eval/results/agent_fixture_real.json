@@ -29,13 +29,14 @@
     "reason": "this runner does not capture provider usage; record it from the provider"
   },
   "gates": {
-    "answer_correctness": 0.9219,
-    "grounding_rate": 1.0,
+    "answer_correctness": 0.8594,
+    "grounding_rate": 0.7969,
     "tool_selection_accuracy": 0.9796,
     "facts_passed": 214,
     "facts_checked": 222,
     "mean_steps": 0.859,
-    "p95_latency_ms": 31918.268
+    "p95_latency_ms": 31918.268,
+    "draft_grounded_rate": 1.0
   },
   "gate": "fixture DB + fake model only; a real agent model needs SKILLPULSE_AGENT_LLM_ENABLED and a shared Redis budget (not supplied)",
   "report": {
@@ -43,9 +44,9 @@
     "dataset": "agent_eval_cases.json",
     "source": "synthetic_fixture",
     "cases": 64,
-    "correct": 59,
-    "correctness": 0.9219,
-    "grounding_rate": 1.0,
+    "correct": 55,
+    "correctness": 0.8594,
+    "grounding_rate": 0.7969,
     "tool_selection_accuracy": 0.9796,
     "results": [
       {
@@ -427,7 +428,7 @@
         "question": "How has the Python trend changed in backend posts in 2020?",
         "category": "trend",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "skill_trend"
         ],
@@ -627,7 +628,7 @@
         "question": "How has the Python trend changed in data posts in 2019?",
         "category": "trend",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "skill_trend"
         ],
@@ -805,7 +806,7 @@
         "question": "Show the data posts in the Netherlands in 2022.",
         "category": "region",
         "correct": false,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "search_jobs"
         ],
@@ -889,7 +890,7 @@
         "question": "List infrastructure posts in the United States in 2020.",
         "category": "region",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "search_jobs"
         ],
@@ -974,7 +975,7 @@
         "question": "Show posts in Canada in 2023.",
         "category": "region",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "search_jobs"
         ],
@@ -1056,7 +1057,7 @@
         "question": "List remote backend posts in 2021.",
         "category": "remote_filter",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "search_jobs"
         ],
@@ -1109,7 +1110,7 @@
         "question": "List on-site data posts in 2021.",
         "category": "remote_filter",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "search_jobs"
         ],
@@ -1184,7 +1185,7 @@
         "question": "My resume lists Python and SQL. What are the biggest gaps for data roles?",
         "category": "cv_gap",
         "correct": false,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "skill_counts"
         ],
@@ -1404,7 +1405,7 @@
         "id": "imp-greek-kubernetes",
         "question": "What share of Greek posts mention Kubernetes?",
         "category": "impossible",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [
           "skill_counts"
@@ -1425,7 +1426,7 @@
         "question": "How many posts were there in 2010?",
         "category": "impossible",
         "correct": false,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "skill_counts"
         ],
@@ -1466,7 +1467,7 @@
         "id": "imp-greece-docker",
         "question": "What share of posts from Greece mention Docker?",
         "category": "impossible",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [
           "skill_counts"
@@ -1616,7 +1617,7 @@
         "id": "tools-failure",
         "question": "Which skills do backend posts mention?",
         "category": "robustness",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [
           "skill_counts"
@@ -1636,7 +1637,7 @@
         "id": "client-cancellation",
         "question": "Which skills do backend posts mention?",
         "category": "robustness",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [],
         "expected_tools": [],
@@ -1678,6 +1679,7 @@
     "facts_checked": 222,
     "facts_passed": 214,
     "mean_steps": 0.859,
-    "p95_latency_ms": 31918.268
+    "p95_latency_ms": 31918.268,
+    "draft_grounded_rate": 1.0
   }
 }

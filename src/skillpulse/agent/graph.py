@@ -274,7 +274,8 @@ def run_agent(
         run.error = final.get("error")
         run.partial = True
         run.answer = TOOL_FAILURE if run.results == [] else render_table(run.results)
-        run.grounded = bool(run.results)
+        # A failed run is not a grounded draft, even when it renders partial tool rows.
+        run.grounded = False
     elif final.get("grounded") and final.get("draft"):
         run.answer = final["draft"]
         run.citations = final.get("citations", [])
@@ -299,10 +300,13 @@ def run_agent(
         else:
             run.answer = render_table(run.results)
         run.citations = [result.result_id for result in run.results]
-        run.grounded = bool(validated) or bool(run.results)
+        # The fallback renders verified fields or a raw table, but it is not a grounded
+        # draft: S4 counts only answers the model wrote and the gate accepted.
+        run.grounded = False
         run.partial = True
     if final.get("timed_out"):
         run.partial = True
+        run.grounded = False
 
     emit(
         "done",

@@ -108,6 +108,7 @@ class AgentEvalReport:
     correct: int
     correctness: float
     grounding_rate: float
+    draft_grounded_rate: float
     tool_selection_accuracy: float
     results: list[AgentCaseResult]
     fixture: dict[str, Any] = field(default_factory=dict)
@@ -230,10 +231,10 @@ def _insufficient_answer(answer: str) -> bool:
 
 
 def _is_correct(case: AgentCase, run: AgentRun, *, adversarial_fake: bool = False) -> bool:
-    if case.simulate == "cancel":
-        return run.error == "cancelled"
-    if case.simulate == "tool_failure":
-        return run.error == "tool_failure" and run.partial
+    # A failed or cancelled run is never a correct answer, even when its fallback text
+    # happens to contain "cannot": the question was not answered from the data.
+    if run.error is not None:
+        return False
     if case.must_refuse:
         return run.refused
     if case.must_ask_back:
@@ -247,7 +248,10 @@ def _is_correct(case: AgentCase, run: AgentRun, *, adversarial_fake: bool = Fals
     # not told to invent anything, so for it the honest test is the normal one above (the
     # number must not appear in the answer) plus the usual tool and fact checks below.
     if case.adversarial_model == "invents" and adversarial_fake:
-        return run.grounded and bool(case.forbidden_numbers) and all(
+        # The gate stripped the planted number, so the run fell back to verified fields.
+        # ``partial`` proves that rewrite happened; the fallback is deliberately not
+        # counted as grounded.
+        return run.partial and bool(case.forbidden_numbers) and all(
             number in run.unsupported for number in case.forbidden_numbers
         )
     if not run.grounded:
@@ -386,9 +390,12 @@ def run_agent_eval(
         if case.expected_tools and set(case.expected_tools) <= set(result.used_tools)
     )
     total = len(cases)
-    # Grounding is only defined for runs that produced an answer; cancellation and a
-    # tool failure have no answer to ground and are scored by correctness instead.
-    answer_results = [result for result in results if result.error is None]
+    # S4 counts every run: a failed run and a raw-table fallback are not a grounded draft.
+    # draft_grounded_rate reports the narrower population that actually produced a draft,
+    # so the two numbers can never be confused.
+    draft_results = [
+        result for result in results if result.error is None and not result.partial
+    ]
     return AgentEvalReport(
         model=model_label,
         dataset=dataset,
@@ -397,9 +404,14 @@ def run_agent_eval(
         correct=correct,
         correctness=round(correct / total, 4) if total else 0.0,
         grounding_rate=round(
-            sum(1 for result in answer_results if result.grounded) / len(answer_results), 4
+            sum(1 for result in results if result.grounded) / total, 4
         )
-        if answer_results
+        if total
+        else 0.0,
+        draft_grounded_rate=round(
+            sum(1 for result in draft_results if result.grounded) / len(draft_results), 4
+        )
+        if draft_results
         else 0.0,
         tool_selection_accuracy=round(tool_hits / len(tool_cases), 4) if tool_cases else 0.0,
         results=results,

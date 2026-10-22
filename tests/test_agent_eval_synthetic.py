@@ -189,13 +189,18 @@ def test_every_case_reaches_its_expected_tool_and_facts(
     assert report.facts_checked == report.facts_passed, [
         result.fact_failures for result in report.results if result.fact_failures
     ]
-    assert report.correct == report.cases, [
+    # The two deliberately simulated failures (tool_failure, cancellation) are never
+    # scored correct, and the one fallback run is not scored grounded.
+    simulated = [result for result in report.results if result.error is not None]
+    assert {result.id for result in simulated} == {"tools-failure", "client-cancellation"}
+    assert report.correct == report.cases - len(simulated), [
         (result.id, result.fact_failures, result.answer)
         for result in report.results
         if not result.correct
     ]
     assert report.tool_selection_accuracy == 1.0
-    assert report.grounding_rate == 1.0
+    assert report.grounding_rate == round(61 / 64, 4)
+    assert report.draft_grounded_rate == 1.0
     assert report.usage["provider"] == "fake"
     assert report.usage["total_tokens"] is None
     assert report.usage["reason"]

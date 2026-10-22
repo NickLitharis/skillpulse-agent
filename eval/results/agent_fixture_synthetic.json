@@ -29,13 +29,14 @@
     "reason": "deterministic fake model; no provider usage is produced"
   },
   "gates": {
-    "answer_correctness": 1.0,
-    "grounding_rate": 1.0,
+    "answer_correctness": 0.9688,
+    "grounding_rate": 0.9531,
     "tool_selection_accuracy": 1.0,
     "facts_passed": 222,
     "facts_checked": 222,
     "mean_steps": 0.781,
-    "p95_latency_ms": 20.052
+    "p95_latency_ms": 20.052,
+    "draft_grounded_rate": 1.0
   },
   "gate": "fixture DB + fake model only; a real agent model needs SKILLPULSE_AGENT_LLM_ENABLED and a shared Redis budget (not supplied)",
   "report": {
@@ -43,9 +44,9 @@
     "dataset": "agent_eval_cases.json",
     "source": "synthetic_fixture",
     "cases": 64,
-    "correct": 64,
-    "correctness": 1.0,
-    "grounding_rate": 1.0,
+    "correct": 62,
+    "correctness": 0.9688,
+    "grounding_rate": 0.9531,
     "tool_selection_accuracy": 1.0,
     "results": [
       {
@@ -1299,7 +1300,7 @@
         "question": "Which skills are most requested in backend posts?",
         "category": "adversarial",
         "correct": true,
-        "grounded": true,
+        "grounded": false,
         "used_tools": [
           "skill_counts"
         ],
@@ -1366,7 +1367,7 @@
         "id": "tools-failure",
         "question": "Which skills do backend posts mention?",
         "category": "robustness",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [
           "skill_counts"
@@ -1386,7 +1387,7 @@
         "id": "client-cancellation",
         "question": "Which skills do backend posts mention?",
         "category": "robustness",
-        "correct": true,
+        "correct": false,
         "grounded": false,
         "used_tools": [],
         "expected_tools": [],
@@ -1428,6 +1429,7 @@
     "facts_checked": 222,
     "facts_passed": 222,
     "mean_steps": 0.781,
-    "p95_latency_ms": 20.052
+    "p95_latency_ms": 20.052,
+    "draft_grounded_rate": 1.0
   }
 }

@@ -231,8 +231,18 @@ tool descriptions changed with it.
 **Decision.** The committed real-model agent result is `correctness 0.9219` (59/64),
 `grounding 1.0`, `tool-selection 0.9796`, `facts 214/222`. It follows two fixes to defects
 in this project's own evaluation code and planner guidance. Nothing in the dataset, the
-fixture, the ground truth or the pass thresholds changed, and the five remaining failures
+fixture, the ground truth or the pass thresholds changed, and the remaining failures
 are reported as they fall rather than edited away.
+
+**Correction (2026-10-22) — the scorer was too generous.** The 0.9219 above counted four
+runs that had `error` set (three `tool_failure`, one `cancelled`) as correct because their
+fallback text contains "cannot", and it excluded those four from the grounding denominator
+while counting nine raw-table fallbacks as grounded. A run with `error` is now never correct
+and a fallback is not a grounded draft. Rescored from the same committed JSON, the honest
+headline is `correctness 0.8594` (55/64) and `grounding 0.7969` (51/64; 9 fallbacks and 4
+failed runs are not grounded). The 51 real drafts are all grounded, so the draft-only rate
+is 1.0 (51/51). S3 still clears its 0.85 target; S4's 0.85 is below its 0.98 target and the
+README says so. No model call was repeated.
 
 **Fix 1 — the adversarial case was unwinnable for a real model.** `adversarial_model ==
 "invents"` passed only when the forbidden number reached the run's `unsupported` list, that

@@ -229,6 +229,7 @@ def cmd_eval_agent(args: argparse.Namespace) -> int:
         "gates": {
             "answer_correctness": report.correctness,
             "grounding_rate": report.grounding_rate,
+            "draft_grounded_rate": report.draft_grounded_rate,
             "tool_selection_accuracy": report.tool_selection_accuracy,
             "facts_passed": report.facts_passed,
             "facts_checked": report.facts_checked,
@@ -243,7 +244,8 @@ def cmd_eval_agent(args: argparse.Namespace) -> int:
     out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(
         f"agent fixture [{report.model}/{report.source}]: correctness={report.correctness} "
-        f"grounding={report.grounding_rate} tool-selection={report.tool_selection_accuracy} "
+        f"grounding={report.grounding_rate} draft-grounding={report.draft_grounded_rate} "
+        f"tool-selection={report.tool_selection_accuracy} "
         f"facts={report.facts_passed}/{report.facts_checked} ({report.correct}/{report.cases}) "
         f"-> {out_path}"
     )

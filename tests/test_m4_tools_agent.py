@@ -164,7 +164,9 @@ def test_invented_number_is_blocked_and_logged(runtime: ToolRuntime) -> None:
     assert "999" not in run.answer
     assert "999" in run.unsupported
     assert run.partial is True
-    assert run.grounded is True  # the rendered claims come from verified fields
+    # The fallback renders verified fields, but it is not a grounded model draft: S4
+    # must not count it as one.
+    assert run.grounded is False
 
 
 def test_impossible_question_says_insufficient(runtime: ToolRuntime) -> None:
