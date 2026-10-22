@@ -37,7 +37,11 @@ class FreehireSearchArgs(BaseModel):
 
     q: str | None = Field(default=None, max_length=120)
     skills: list[str] = Field(default_factory=list, max_length=10)
-    countries: list[str] = Field(default_factory=list, max_length=5)
+    countries: list[str] = Field(
+        default_factory=list,
+        max_length=5,
+        description="Country names or ISO codes; both are accepted (Greece or GR).",
+    )
     regions: list[str] = Field(default_factory=list, max_length=5)
     remote: bool = True
     limit: int = Field(default=10, ge=1, le=20)
@@ -49,7 +53,7 @@ FREEHIRE_TOOL_SPEC: dict[str, Any] = {
         "Search live open vacancies on freehire.me (an external job feed, not the HN "
         "posts). Returns title, company, location, work mode, skills and the posting "
         "URL. Use it when the question asks for real jobs to apply to, and say that the "
-        "result comes from an external feed."
+        "result comes from an external feed. Country filters accept a name or an ISO code."
     ),
     "args_schema": FreehireSearchArgs.model_json_schema(),
 }

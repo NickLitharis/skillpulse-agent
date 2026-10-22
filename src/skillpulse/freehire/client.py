@@ -19,6 +19,25 @@ MAX_LIMIT = 20
 USER_AGENT = "skillpulse/0.1 (+https://github.com/NickLitharis/skillpulse-agent)"
 
 
+COUNTRY_CODES = {
+    "greece": "GR", "greek": "GR", "uk": "GB", "united kingdom": "GB", "england": "GB",
+    "germany": "DE", "netherlands": "NL", "holland": "NL", "france": "FR",
+    "spain": "ES", "portugal": "PT", "italy": "IT", "ireland": "IE", "poland": "PL",
+    "romania": "RO", "bulgaria": "BG", "cyprus": "CY", "sweden": "SE", "denmark": "DK",
+    "finland": "FI", "norway": "NO", "austria": "AT", "belgium": "BE",
+    "switzerland": "CH", "czechia": "CZ", "czech republic": "CZ", "hungary": "HU",
+    "usa": "US", "united states": "US", "canada": "CA", "australia": "AU",
+}
+
+
+def normalize_country(value: str) -> str:
+    """The API wants ISO codes; the model sends names like "Greece"."""
+    cleaned = value.strip()
+    if len(cleaned) == 2:
+        return cleaned.upper()
+    return COUNTRY_CODES.get(cleaned.lower(), cleaned)
+
+
 class FreehireError(RuntimeError):
     """The freehire API could not be reached or returned an unusable response."""
 
@@ -92,7 +111,7 @@ class FreehireClient:
         if skills:
             params["skills"] = ",".join(skills)
         if countries:
-            params["countries"] = ",".join(countries)
+            params["countries"] = ",".join(normalize_country(c) for c in countries)
         if regions:
             params["regions"] = ",".join(regions)
         if remote:

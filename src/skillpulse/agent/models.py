@@ -528,6 +528,7 @@ def build_agent_model(
         model=settings.agent_llm_model,
         api_key=settings.agent_llm_api_key,
         timeout_seconds=settings.agent_llm_timeout_seconds,
+        max_output_tokens=settings.agent_llm_max_output_tokens,
     )
     budget = RedisDailyBudget(
         redis_client, settings.agent_daily_token_budget, key_prefix="skillpulse:llm:agent"

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from skillpulse.agent.graph import run_agent
 from skillpulse.agent.models import DraftResult, FakeAgentModel, PlanResult
 from skillpulse.api.app import create_app
+from skillpulse.config import Settings
 from skillpulse.eval.agent_eval import FailingToolRuntime, InventingAgentModel
 from skillpulse.eval.fixture import build_fixture_engine
 from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
@@ -354,7 +355,10 @@ def test_ask_endpoint_returns_503_when_database_is_down() -> None:
 
 
 def test_ask_endpoint_requires_a_configured_model(factory: sessionmaker[Session]) -> None:
-    app = create_app(factory, load_taxonomy(), agent_model=None)
+    # The gate is passed explicitly: a developer .env that enables the agent must not
+    # change what this test asserts.
+    closed = Settings(agent_llm_enabled=False)
+    app = create_app(factory, load_taxonomy(), agent_model=None, settings=closed)
     # build_agent_model returns None while the gate is off, so /v1/ask is closed.
     client = TestClient(app)
     assert client.post("/v1/ask", json={"question": "hi"}).status_code == 503

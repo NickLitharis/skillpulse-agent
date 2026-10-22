@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     agent_llm_base_url: str = ""
     agent_llm_model: str = ""
     agent_llm_api_key: str = ""
+    # Listing several jobs in one JSON draft needs more room than a skill list does.
+    agent_llm_max_output_tokens: int = Field(default=512, gt=0)
     agent_llm_timeout_seconds: float = Field(default=20.0, gt=0)
     agent_max_tool_calls: int = Field(default=6, ge=1, le=20)
     agent_overall_timeout_seconds: float = Field(default=60.0, gt=0)

@@ -12,7 +12,7 @@ from skillpulse.freehire import (
     FreehireSearchArgs,
     FreehireToolRuntime,
 )
-from skillpulse.freehire.client import SearchPage
+from skillpulse.freehire.client import SearchPage, normalize_country
 from skillpulse.freehire.tool import (
     FREEHIRE_TOOL_NAME,
     FREEHIRE_TOOL_SPEC,
@@ -166,3 +166,11 @@ def test_runtime_routes_freehire_calls_to_the_client() -> None:
     assert result.rows == [{"title": "a"}]
     assert fake.calls[0]["q"] == "llm"
     assert FREEHIRE_TOOL_NAME in {spec["name"] for spec in runtime.tool_specs}
+
+
+def test_country_names_are_normalized_to_iso_codes() -> None:
+    assert normalize_country("Greece") == "GR"
+    assert normalize_country("greece") == "GR"
+    assert normalize_country("gr") == "GR"
+    assert normalize_country("United Kingdom") == "GB"
+    assert normalize_country("Narnia") == "Narnia"
