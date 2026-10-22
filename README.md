@@ -187,7 +187,13 @@ A real run needs a provider, so CI uses the fake model. The committed results us
 `SKILLPULSE_LLM_BASE_URL=https://integrate.api.nvidia.com/v1` with
 `SKILLPULSE_LLM_MODEL=nvidia/nemotron-3-super-120b-a12b`, and the key in
 `SKILLPULSE_LLM_API_KEY` / `SKILLPULSE_AGENT_LLM_API_KEY`. The agent set and the five-year
-fixture are committed and hold no post text, so a reader can reproduce any number. The
+fixture are committed and hold no post text, so a reader can reproduce any number.
+
+Any OpenAI-compatible provider works, including DeepSeek. Point
+`SKILLPULSE_LLM_BASE_URL` and `SKILLPULSE_AGENT_LLM_BASE_URL` at
+`https://api.deepseek.com/v1` and set the model to `deepseek-chat`. Put the key in the
+environment and reference it from `.env` as `${DEEPSEEK_API_KEY}`; `.env` is gitignored,
+and a key is never committed. The
 agent must not quote a share based on fewer than 30 posts, and expected facts are computed
 by SQL over the raw fixture tables, not by the tools under test.
 
