@@ -202,7 +202,6 @@ made smoke fail as expected; revoking it restored a passing run. The final fresh
 Removing the preflight placeholder filter in a disposable copy also made its tests fail as expected.
 All three chart profiles passed lint and strict Kubernetes schema validation.
 A deliberately malformed environment value failed schema validation, confirming that the validator rejects that fault.
-See [the branch verification record](branches/feature-finish-platform-milestones.md) for scope and limitations.
 
 ## Workflows and acceptance limits
 

@@ -95,7 +95,7 @@
         "Initial M5 suite: 154 passed, 3 skipped (env-gated Inspector) in 62 s; ruff clean; strict mypy clean (43 files); negative control (SQLite query_only guard removed) failed as required, then restored green."
       ],
       "remaining_gates": [
-        "Claude Desktop end-to-end (S8 'works in Claude Desktop'): BLOCKED - needs the GUI and a global client-config edit; not validated this round. Ready example config + manual check are in docs/m5-acceptance.md and docs/claude-desktop-mcp.example.json.",
+        "Claude Desktop end-to-end (S8 'works in Claude Desktop'): BLOCKED - needs the GUI and a global client-config edit; not validated this round. Ready example config + manual check are in docs/claude-desktop-mcp.example.json.",
         "Hosted/public MCP endpoint remains unverified. Local M6 Kubernetes smoke exercises the actual MCP HTTP service through a temporary loopback port-forward; that is not public hosting evidence."
       ],
       "spec_acceptance": "MCP server (stdio + HTTP) exposing the same read-only tools: delivered and green (real SDK + Inspector CLI). Works in MCP Inspector: CLI and real browser GUI roundtrips verified, with a synthetic-data GIF in README. Works in Claude Desktop (S8): BLOCKED, not validated (recorded with a ready config + manual check)."
