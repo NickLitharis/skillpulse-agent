@@ -42,7 +42,11 @@ class FreehireSearchArgs(BaseModel):
         max_length=5,
         description="Country names or ISO codes; both are accepted (Greece or GR).",
     )
-    regions: list[str] = Field(default_factory=list, max_length=5)
+    regions: list[str] = Field(
+        default_factory=list,
+        max_length=5,
+        description="Regions such as Europe (eu), north_america or asia.",
+    )
     remote: bool = True
     limit: int = Field(default=10, ge=1, le=20)
 

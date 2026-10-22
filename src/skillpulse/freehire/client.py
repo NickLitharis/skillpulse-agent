@@ -30,6 +30,19 @@ COUNTRY_CODES = {
 }
 
 
+REGION_ALIASES = {
+    "europe": "eu", "european union": "eu", "eu": "eu", "emea": "eu",
+    "north america": "north_america", "usa": "north_america", "us": "north_america",
+    "asia": "asia", "worldwide": "", "global": "", "anywhere": "",
+}
+
+
+def normalize_region(value: str) -> str:
+    """The API uses ``eu``; the model writes "Europe"."""
+    cleaned = value.strip()
+    return REGION_ALIASES.get(cleaned.lower(), cleaned.lower().replace(" ", "_"))
+
+
 def normalize_country(value: str) -> str:
     """The API wants ISO codes; the model sends names like "Greece"."""
     cleaned = value.strip()
@@ -113,7 +126,10 @@ class FreehireClient:
         if countries:
             params["countries"] = ",".join(normalize_country(c) for c in countries)
         if regions:
-            params["regions"] = ",".join(regions)
+            normalized = [normalize_region(r) for r in regions]
+            joined = ",".join(r for r in normalized if r)
+            if joined:
+                params["regions"] = joined
         if remote:
             params["work_mode"] = "remote"
         headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
