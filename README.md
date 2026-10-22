@@ -82,8 +82,8 @@ make beat                     # celery -A skillpulse.workers.app beat
 Beat refreshes the current and previous month's threads every 6 hours
 (`SKILLPULSE_CELERY_UPDATE_INTERVAL_SECONDS`, default 21600) and runs a nightly refresh of
 the trend views. `worker-skills` extracts pending posts in bounded batches. Re-running a
-fetch creates zero duplicates (upsert on the HN item id), and a failed run resumes from
-where it stopped.
+fetch creates zero duplicates (upsert on the HN item id). A failed run records its last
+committed item, but the next fetch restarts at the first comment; it does not skip ahead.
 
 ## MCP server
 

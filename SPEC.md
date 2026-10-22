@@ -73,7 +73,7 @@ Every quality number in the README must come from a command a reader can re-run.
 | S3 | Agent answer correctness on the committed agent set (§11), same model | ≥ 0.85 |
 | S4 | Grounding: numbers in answers that match a tool result | ≥ 0.98; every miss logged as a defect |
 | S5 | Fetching the same thread twice | 0 duplicate posts (integration test) |
-| S6 | Hacker News API down or slow mid-run | Retried with backoff, run marked failed, next run resumes (test) |
+| S6 | Hacker News API down or slow mid-run | Retried with backoff, run marked failed with its resume point recorded; re-running the thread creates no duplicates (test) |
 | S7 | CI deploys the chart to k3d and runs the smoke test on every PR; green on `main` | Green on `main` |
 | S8 | MCP server usable from MCP Inspector over stdio, with a recorded demo | README GIF |
 
@@ -171,8 +171,8 @@ implementation of each tool. Deployments: `api`, `mcp`, `worker-fetch`, `worker-
    a duplicate: one post per company per month is the trend signal.
 5. **Politeness:** at most 10 requests a second (token bucket in Redis), even though no
    limit is published. HTTP 429/5xx or timeouts → retry with exponential backoff, at most
-   5 tries; then the run is marked `failed` in `fetch_runs`, and the next run resumes from
-   the last fetched item.
+   5 tries; then the run is marked `failed` in `fetch_runs` with the last committed item,
+   and the next fetch restarts at the first comment (it does not skip ahead).
 6. A Redis lock with an expiry stops two runs on the same thread overlapping, and survives
    a crashed worker. A worker that cannot take the lock skips the thread.
 7. Workers use a **sync** SQLAlchemy engine; only the API uses the async one. Async DB code

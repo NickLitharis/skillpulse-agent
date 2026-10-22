@@ -27,7 +27,7 @@
       "status": "partial",
       "evidence": [
         "Celery app, beat schedule, Redis-wide token bucket and per-thread lock implemented.",
-        "Forced mid-run failure marks the run failed with its resume point and the next run finishes with no skip/duplicate (S6) on real Postgres.",
+        "Forced mid-run failure marks the run failed with its resume point, and refetching the thread from the start creates no duplicate rows (S6) on real Postgres.",
         "Real Redis worker smoke test green with a localhost HTTP stub.",
         "Full back-fill since 2011 has NOT run: it needs the same unresolved authorization as M1."
       ],
@@ -35,7 +35,7 @@
         "The M1 authorization gate, then run the bounded/full back-fill.",
         "Measure discovery coverage again (the D001 551-item scan is a past record, not a new measurement)."
       ],
-      "spec_acceptance": "S6 resume: met. Full 2011 back-fill: NOT delivered."
+      "spec_acceptance": "S6 resume point recorded: met; the next fetch restarts at the first comment rather than skipping ahead. Full 2011 back-fill: NOT delivered."
     },
     {
       "id": "M3",
