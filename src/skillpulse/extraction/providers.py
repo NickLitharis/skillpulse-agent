@@ -25,6 +25,7 @@ import redis
 from skillpulse.config import Settings, get_settings
 from skillpulse.extraction.budget import RedisDailyBudget, TokenBudget
 from skillpulse.extraction.llm import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
     LLMExtractionError,
     LLMExtractor,
     LLMUnavailableError,
@@ -43,6 +44,7 @@ class OpenAICompatibleClient:
         model: str,
         api_key: str = "",
         timeout_seconds: float = 60.0,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         http_client: httpx.Client | None = None,
     ) -> None:
         if not base_url.strip():
@@ -52,6 +54,7 @@ class OpenAICompatibleClient:
         self._endpoint = base_url.rstrip("/") + "/chat/completions"
         self._model = model
         self._api_key = api_key
+        self._max_output_tokens = max_output_tokens
         self._owns_client = http_client is None
         self._client = http_client or httpx.Client(timeout=timeout_seconds)
 
@@ -63,6 +66,8 @@ class OpenAICompatibleClient:
         payload: dict[str, Any] = {
             "model": self._model,
             "temperature": 0,
+            # The budget reserves this limit, so the request must enforce it too.
+            "max_tokens": self._max_output_tokens,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": system},
@@ -105,6 +110,7 @@ def build_llm_client(settings: Settings | None = None) -> StructuredLLMClient | 
         model=settings.llm_model,
         api_key=settings.llm_api_key,
         timeout_seconds=settings.llm_timeout_seconds,
+        max_output_tokens=settings.llm_max_output_tokens,
     )
 
 

@@ -98,7 +98,22 @@ def test_openai_compatible_client_posts_and_parses() -> None:
     request = route.calls.last.request
     assert request.headers["authorization"] == "Bearer secret-key"
     assert b'"temperature":0' in request.content
+    assert b'"max_tokens":512' in request.content
     assert b"json_object" in request.content
+
+
+@respx.mock
+def test_provider_sends_the_configured_output_token_limit() -> None:
+    route = respx.post(ENDPOINT).mock(
+        return_value=httpx.Response(
+            200, json={"choices": [{"message": {"content": '{"skills": []}'}}]}
+        )
+    )
+    client = OpenAICompatibleClient(
+        base_url="http://llm.test/v1", model="test-model", max_output_tokens=64
+    )
+    client.complete_json(system="s", prompt="p")
+    assert b'"max_tokens":64' in route.calls.last.request.content
 
 
 @respx.mock
