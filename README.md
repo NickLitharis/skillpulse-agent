@@ -12,6 +12,12 @@ from a command you can re-run. Design: [SPEC.md](SPEC.md). Decisions:
 Five read-only tools, shared by the agent and the MCP server: `search_jobs`,
 `skill_counts`, `skill_trend`, `compare_skills`, `match_cv`.
 
+A sixth tool, `freehire_search_jobs`, is optional and off by default: it queries the
+keyless public search API at [freehire.me](https://freehire.me/docs/api) for live
+vacancies, and every result says so, because that feed is not the HN corpus. Enable it
+with `SKILLPULSE_FREEHIRE_ENABLED=true`; `skillpulse jobs --q llm --country GR` runs the
+same search from the terminal without the agent.
+
 ## Results
 
 | What | Dataset | Result |

@@ -32,6 +32,7 @@ from skillpulse.extraction.repository import sync_taxonomy
 from skillpulse.extraction.service import extract_post
 from skillpulse.extraction.taxonomy import REPO_ROOT, load_taxonomy
 from skillpulse.fetch_service import backfill, fetch_thread_by_id, find_hiring_threads
+from skillpulse.freehire import FreehireClient, FreehireError
 from skillpulse.logging_config import configure_logging
 from skillpulse.models import Post
 from skillpulse.repository import count_posts
@@ -272,6 +273,34 @@ def cmd_refresh_trends(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_jobs(args: argparse.Namespace) -> int:
+    """Search live vacancies on freehire.me (keyless public API, no token)."""
+    client = FreehireClient()
+    try:
+        page = client.search(
+            q=args.q,
+            skills=args.skill,
+            countries=args.country,
+            regions=args.region,
+            remote=not args.include_onsite,
+            limit=args.limit,
+        )
+    except FreehireError as error:
+        print(f"freehire: {error}", file=sys.stderr)
+        return 2
+    if page.ignored:
+        print(f"filters ignored by the API: {', '.join(page.ignored)}", file=sys.stderr)
+    print(f"{len(page.rows)} of {page.total} matching vacancies")
+    for row in page.rows:
+        skills = ", ".join(row["skills"][:5])
+        print(f"  {row['title']} — {row['company']}")
+        print(f"    {row['location']} [{row['work_mode'] or 'unspecified'}]")
+        if skills:
+            print(f"    {skills}")
+        print(f"    {row['url']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser with every M1 subcommand."""
     parser = argparse.ArgumentParser(prog="skillpulse", description="SkillPulse Agent")
@@ -289,6 +318,17 @@ def build_parser() -> argparse.ArgumentParser:
     backfill_p.add_argument("--limit", type=int, default=None, help="max threads to fetch")
     backfill_p.add_argument("--max-scan", type=int, default=600)
     backfill_p.set_defaults(func=cmd_backfill)
+
+    jobs = sub.add_parser("jobs", help="search live vacancies on freehire.me")
+    jobs.add_argument("--q", default=None, help="keyword search")
+    jobs.add_argument("--country", action="append", default=[], help="country code, repeatable")
+    jobs.add_argument("--region", action="append", default=[], help="region, repeatable")
+    jobs.add_argument("--skill", action="append", default=[], help="skill, repeatable")
+    jobs.add_argument("--limit", type=int, default=10)
+    jobs.add_argument(
+        "--include-onsite", action="store_true", help="do not filter to remote roles"
+    )
+    jobs.set_defaults(func=cmd_jobs)
 
     taxonomy_p = sub.add_parser("taxonomy", help="show the loaded skill taxonomy")
     taxonomy_p.set_defaults(func=cmd_taxonomy)

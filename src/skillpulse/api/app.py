@@ -32,6 +32,7 @@ from skillpulse.agent.graph import run_agent
 from skillpulse.agent.models import AgentModel, build_agent_model
 from skillpulse.config import Settings, get_settings
 from skillpulse.extraction.taxonomy import Taxonomy, load_taxonomy
+from skillpulse.freehire import FreehireClient, FreehireToolRuntime
 from skillpulse.observability import (
     metrics_content,
     observe_agent,
@@ -93,6 +94,19 @@ def create_app(
         statement_timeout_ms=settings.tool_statement_timeout_ms,
         max_rows=settings.tool_max_rows,
     )
+    if settings.freehire_enabled:
+        # One extra read-only tool over an external feed. SQL tools keep their session
+        # and timeout; only the freehire_* call leaves the process.
+        runtime = FreehireToolRuntime(
+            factory,
+            tax,
+            client=FreehireClient(
+                base_url=settings.freehire_base_url,
+                timeout_seconds=settings.freehire_timeout_seconds,
+            ),
+            statement_timeout_ms=settings.tool_statement_timeout_ms,
+            max_rows=settings.tool_max_rows,
+        )
 
     def get_session() -> Iterator[Session]:
         session = factory()

@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     # M4 agent (SPEC sections 9-10). Off by default, exactly like the extraction LLM:
     # no agent model call is made unless the gate is on AND a base URL and model are set.
     # The agent never reads ambient credentials; the key comes only from this setting.
+    # freehire.me: an optional external job feed (keyless public search API). Off by
+    # default, like every other outbound call, so the agent stays a local-SQL system
+    # unless someone asks for live vacancies. The MCP server from the same vendor needs
+    # a token; this integration uses the public REST search, which does not.
+    freehire_enabled: bool = False
+    freehire_base_url: str = "https://freehire.me"
+    freehire_timeout_seconds: float = Field(default=10.0, gt=0)
+
     agent_llm_enabled: bool = False
     agent_llm_base_url: str = ""
     agent_llm_model: str = ""
